@@ -44,12 +44,13 @@ public class S3Service {
 
 
     public String uploadImage(MultipartFile image) throws IOException {
-        var imageKey = UUID.randomUUID().toString();
+        var contentType = image.getContentType();
+        var imageKey = "imagens-originais/" + UUID.randomUUID().toString() + contentType.replace("image/",".") ;
         
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
         .bucket(bucketName)
         .key(imageKey)
-        .contentType(image.getContentType())
+        .contentType(contentType)
         .build();
 
         s3Client.putObject(putObjectRequest, 
@@ -78,6 +79,7 @@ public class S3Service {
     public List<ImageResponse> listAllImagesWithPresignedUrls() {
         ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
                 .bucket(bucketName)
+                .prefix("imagens-originais/")
                 .build();
 
         return s3Client.listObjectsV2(listRequest).contents().stream()
