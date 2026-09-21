@@ -1,6 +1,7 @@
 package br.edu.ifsp.sid.controller;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -26,7 +27,7 @@ public class S3Controller {
     }
 
     @GetMapping
-    public ResponseEntity<List<ImageResponse>> listAllImages(){
+    public ResponseEntity<Map<String, List<ImageResponse>>> listAllImages(){
         var names = s3Service.listAllImagesWithPresignedUrls();
         return ResponseEntity.status(HttpStatus.OK).body(names);
     }

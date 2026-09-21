@@ -4,64 +4,83 @@ import axios from 'axios'
 
 type ImageItem = {
   id: string
-  src: string
-  name: string
-  type?: string
-  size?: number
-  uploadedAt?: string
+  filename: string
+  url: string
+  browser?: ImageElementInfo
+}
+
+interface ImageResponse {
+  filename: string
+  url: string
+}
+
+type ImageElementInfo = {
+  currentSrc: string
+  naturalWidth: number
+  naturalHeight: number
+  renderedWidth: number
+  renderedHeight: number
+  complete: boolean
+  loading: string
+  decoding: string
+  fetchPriority: string
+  crossOrigin: string
+  referrerPolicy: string
+  sizes: string
+  srcset: string
+  isMap: boolean
+  useMap: string
 }
 
 const API_URL = import.meta.env.VITE_API_URL || '/bucket'
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
 
-function normalizeImages(payload: unknown): ImageItem[] {
-  const data = Array.isArray(payload)
-    ? payload
-    : payload && typeof payload === 'object' && 'images' in payload
-      ? (payload as { images: unknown }).images
-      : []
+function isAcceptedImageFile(file: File) {
+  const normalizedType = file.type.toLowerCase()
+  const normalizedName = file.name.toLowerCase()
+  const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/bmp']
 
-  if (!Array.isArray(data)) return []
-
-  return data.flatMap((item, index) => {
-    if (typeof item === 'string') {
-      return [{ id: `${index}-${item}`, src: item, name: `Image ${index + 1}` }]
-    }
-
-    if (item && typeof item === 'object') {
-      const image = item as Record<string, unknown>
-      const src = image.url ?? image.src ?? image.path ?? image.location
-      if (typeof src === 'string') {
-        return [{
-          id: String(image.id ?? `${index}-${src}`),
-          src,
-          name: String(image.name ?? image.filename ?? `Image ${index + 1}`),
-          type: typeof image.type === 'string' ? image.type : undefined,
-          size: typeof image.size === 'number' ? image.size : undefined,
-          uploadedAt: typeof image.uploadedAt === 'string' ? image.uploadedAt : undefined,
-        }]
-      }
-    }
-
-    return []
-  })
+  return allowedMimeTypes.includes(normalizedType)
+    || /\.(png|jpe?g|gif|webp|bmp)$/i.test(normalizedName)
 }
 
-function formatBytes(bytes?: number) {
-  if (bytes === undefined) return 'Unknown size'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+function normalizeImages(items: ImageResponse[]): ImageItem[] {
+  return items.map((image, index) => ({
+    id: `${index}-${image.url}`,
+    filename: image.filename,
+    url: image.url,
+  }))
 }
 
-function formatDate(date?: string) {
-  if (!date) return 'Just now'
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(date))
+function ImageInfo({ image }: { image: ImageItem }) {
+  const browser = image.browser
+
+  return (
+    <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-4">
+      <div className="col-span-2 min-w-0 sm:col-span-1"><dt className="text-slate-400">Filename</dt><dd className="truncate font-medium" title={image.filename}>{image.filename}</dd></div>
+      <div className="col-span-2 min-w-0 sm:col-span-3"><dt className="text-slate-400">Response URL</dt><dd className="truncate font-medium" title={image.url}>{image.url}</dd></div>
+      <div><dt className="text-slate-400">Intrinsic size</dt><dd className="font-medium">{browser ? `${browser.naturalWidth} x ${browser.naturalHeight}` : 'Loading...'}</dd></div>
+      <div><dt className="text-slate-400">Rendered size</dt><dd className="font-medium">{browser ? `${browser.renderedWidth} x ${browser.renderedHeight}` : 'Loading...'}</dd></div>
+      <div><dt className="text-slate-400">Loaded</dt><dd className="font-medium">{browser?.complete ? 'Yes' : 'Loading...'}</dd></div>
+      <div><dt className="text-slate-400">Loading mode</dt><dd className="font-medium">{browser?.loading || 'default'}</dd></div>
+      <div><dt className="text-slate-400">Decoding</dt><dd className="font-medium">{browser?.decoding || 'auto'}</dd></div>
+      <div><dt className="text-slate-400">Fetch priority</dt><dd className="font-medium">{browser?.fetchPriority || 'auto'}</dd></div>
+      <div><dt className="text-slate-400">Cross-origin</dt><dd className="font-medium">{browser?.crossOrigin || 'Not set'}</dd></div>
+      <div><dt className="text-slate-400">Referrer policy</dt><dd className="font-medium">{browser?.referrerPolicy || 'Not set'}</dd></div>
+      <div><dt className="text-slate-400">Image map</dt><dd className="font-medium">{browser?.isMap ? 'Yes' : 'No'}</dd></div>
+      <div className="col-span-2 min-w-0 sm:col-span-4"><dt className="text-slate-400">Sizes</dt><dd className="truncate font-medium" title={browser?.sizes}>{browser?.sizes || 'Not set'}</dd></div>
+      <div className="col-span-2 min-w-0 sm:col-span-4"><dt className="text-slate-400">Srcset</dt><dd className="truncate font-medium" title={browser?.srcset}>{browser?.srcset || 'Not set'}</dd></div>
+      <div className="col-span-2 min-w-0 sm:col-span-4"><dt className="text-slate-400">Current source</dt><dd className="truncate font-medium" title={browser?.currentSrc}>{browser?.currentSrc || 'Loading...'}</dd></div>
+    </dl>
+  )
 }
 
 export default function App() {
   const inputRef = useRef<HTMLInputElement>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [preview, setPreview] = useState('')
+  const [processedImages, setProcessedImages] = useState<ImageItem[]>([])
+  const [selectedProcessedImage, setSelectedProcessedImage] = useState<ImageItem | null>(null)
   const [images, setImages] = useState<ImageItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -70,12 +89,47 @@ export default function App() {
   const [lastUploaded, setLastUploaded] = useState<ImageItem | null>(null)
   const [selectedImage, setSelectedImage] = useState<ImageItem | null>(null)
 
+  const handleImageLoad = (element: HTMLImageElement, image: ImageItem, list: 'original' | 'processed' | 'uploaded' = 'original') => {
+    const loadedImage = {
+      ...image,
+      browser: {
+        currentSrc: element.currentSrc,
+        naturalWidth: element.naturalWidth,
+        naturalHeight: element.naturalHeight,
+        renderedWidth: element.width,
+        renderedHeight: element.height,
+        complete: element.complete,
+        loading: element.loading,
+        decoding: element.decoding,
+        fetchPriority: element.fetchPriority,
+        crossOrigin: element.crossOrigin ?? '',
+        referrerPolicy: element.referrerPolicy,
+        sizes: element.sizes,
+        srcset: element.srcset,
+        isMap: element.isMap,
+        useMap: element.useMap,
+      },
+    }
+
+    const updateImages = (items: ImageItem[]) => items.map((item) => item.id === image.id ? loadedImage : item)
+    if (list === 'uploaded') {
+      setLastUploaded(loadedImage)
+    } else if (list === 'processed') {
+      setProcessedImages(updateImages)
+      setSelectedProcessedImage((current) => current?.id === image.id ? loadedImage : current)
+    } else {
+      setImages(updateImages)
+      setSelectedImage((current) => current?.id === image.id ? loadedImage : current)
+    }
+  }
+
   const loadImages = async () => {
     setIsLoading(true)
     setMessage('')
     try {
-      const response = await axios.get(API_URL)
-      setImages(normalizeImages(response.data))
+      const response = await axios.get<{ originais: ImageResponse[], processadas: ImageResponse[] }>(API_URL)
+      setImages(normalizeImages(response.data.originais))
+      setProcessedImages(normalizeImages(response.data.processadas))
     } catch {
       setMessage('Could not load your images. Please try again.')
     } finally {
@@ -100,10 +154,20 @@ export default function App() {
 
   const chooseFile = (file?: File) => {
     if (!file) return
-    if (!file.type.startsWith('image/')) {
-      setMessage('Please choose an image file.')
+
+    const isImage = isAcceptedImageFile(file)
+    const isTooLarge = file.size > MAX_IMAGE_SIZE_BYTES
+
+    if (!isImage) {
+      setMessage('Please choose a valid image file (PNG, JPG, GIF, WebP, or BMP).')
       return
     }
+
+    if (isTooLarge) {
+      setMessage('Please choose an image smaller than 5MB.')
+      return
+    }
+
     setMessage('')
     setSelectedFile(file)
   }
@@ -118,15 +182,8 @@ export default function App() {
 
     try {
       const response = await axios.post(API_URL, formData)
-      const uploadedImage = normalizeImages(response.data)[0] ?? {
-        id: selectedFile.name,
-        src: '',
-        name: selectedFile.name,
-        type: selectedFile.type,
-        size: selectedFile.size,
-        uploadedAt: new Date().toISOString(),
-      }
-      setLastUploaded({ ...uploadedImage, type: uploadedImage.type ?? selectedFile.type, size: uploadedImage.size ?? selectedFile.size, uploadedAt: uploadedImage.uploadedAt ?? new Date().toISOString() })
+      const uploadedImage = normalizeImages([response.data as ImageResponse])[0]
+      setLastUploaded(uploadedImage)
       setSelectedFile(null)
       await loadImages()
     } catch {
@@ -192,15 +249,12 @@ export default function App() {
             {lastUploaded && (
               <div className="mt-6 border-t border-slate-200 pt-5">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Last uploaded</p>
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                  <div><dt className="text-slate-400">Name</dt><dd className="truncate font-medium" title={lastUploaded.name}>{lastUploaded.name}</dd></div>
-                  <div><dt className="text-slate-400">Type</dt><dd className="font-medium">{lastUploaded.type ?? 'Unknown type'}</dd></div>
-                  <div><dt className="text-slate-400">Size</dt><dd className="font-medium">{formatBytes(lastUploaded.size)}</dd></div>
-                  <div><dt className="text-slate-400">Uploaded</dt><dd className="font-medium">{formatDate(lastUploaded.uploadedAt)}</dd></div>
-                </dl>
+                <img src={lastUploaded.url} alt="" className="hidden" onLoad={(event) => handleImageLoad(event.currentTarget, lastUploaded, 'uploaded')} />
+                <ImageInfo image={lastUploaded} />
               </div>
             )}
           </div>
+
 
           <section aria-labelledby="gallery-title">
             <div className="mb-4 flex items-baseline justify-between border-b border-slate-200 pb-3">
@@ -221,8 +275,8 @@ export default function App() {
                     aria-pressed={selectedImage?.id === image.id}
                     className={`group overflow-hidden rounded-xl border bg-white text-left transition ${selectedImage?.id === image.id ? 'border-teal-600 ring-2 ring-teal-100' : 'border-slate-200 hover:border-teal-300'}`}
                   >
-                    <img src={image.src} alt={image.name} className="aspect-square w-full object-cover transition duration-300 group-hover:scale-105" />
-                    <figcaption className="truncate px-3 py-2 text-xs text-slate-500">{image.name}</figcaption>
+                    <img src={image.url} alt={image.filename} onLoad={(event) => handleImageLoad(event.currentTarget, image)} className="aspect-square w-full object-cover transition duration-300 group-hover:scale-105" />
+                    <figcaption className="truncate px-3 py-2 text-xs text-slate-500">{image.filename}</figcaption>
                   </button>
                 ))}
               </div>
@@ -230,12 +284,41 @@ export default function App() {
             {selectedImage && (
               <div className="mt-6 border-t border-slate-200 pt-5">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Selected image</p>
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-4">
-                  <div className="col-span-2 min-w-0 sm:col-span-1"><dt className="text-slate-400">Name</dt><dd className="truncate font-medium" title={selectedImage.name}>{selectedImage.name}</dd></div>
-                  <div><dt className="text-slate-400">Type</dt><dd className="truncate font-medium">{selectedImage.type ?? 'Unknown type'}</dd></div>
-                  <div><dt className="text-slate-400">Size</dt><dd className="font-medium">{formatBytes(selectedImage.size)}</dd></div>
-                  <div><dt className="text-slate-400">Uploaded</dt><dd className="font-medium">{formatDate(selectedImage.uploadedAt)}</dd></div>
-                </dl>
+                <ImageInfo image={selectedImage} />
+              </div>
+            )}
+          </section>
+
+
+          <section aria-labelledby="gallery-title">
+            <div className="mb-4 flex items-baseline justify-between border-b border-slate-200 pb-3">
+              <h2 id="gallery-title" className="text-lg font-semibold">Processed images</h2>
+              <span className="text-sm text-slate-500">{processedImages.length} {processedImages.length === 1 ? 'image' : 'images'}</span>
+            </div>
+            {isLoading ? (
+              <p className="py-16 text-center text-sm text-slate-500">Fetching images...</p>
+            ) : processedImages.length === 0 ? (
+              <p className="rounded-xl border border-slate-200 bg-white/50 px-6 py-16 text-center text-sm text-slate-500">Your processed images will appear here.</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {processedImages.map((image) => (
+                  <button
+                    key={image.id}
+                    type="button"
+                    onClick={() => setSelectedProcessedImage(image)}
+                    aria-pressed={selectedProcessedImage?.id === image.id}
+                    className={`group overflow-hidden rounded-xl border bg-white text-left transition ${selectedProcessedImage?.id === image.id ? 'border-teal-600 ring-2 ring-teal-100' : 'border-slate-200 hover:border-teal-300'}`}
+                  >
+                    <img src={image.url} alt={image.filename} onLoad={(event) => handleImageLoad(event.currentTarget, image, 'processed')} className="aspect-square w-full object-cover transition duration-300 group-hover:scale-105" />
+                    <figcaption className="truncate px-3 py-2 text-xs text-slate-500">{image.filename}</figcaption>
+                  </button>
+                ))}
+              </div>
+            )}
+            {selectedProcessedImage && (
+              <div className="mt-6 border-t border-slate-200 pt-5">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Selected image</p>
+                <ImageInfo image={selectedProcessedImage} />
               </div>
             )}
           </section>

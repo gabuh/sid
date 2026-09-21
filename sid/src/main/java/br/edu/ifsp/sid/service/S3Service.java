@@ -3,6 +3,7 @@ package br.edu.ifsp.sid.service;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -76,18 +77,29 @@ public class S3Service {
     }
 
 
-    public List<ImageResponse> listAllImagesWithPresignedUrls() {
+    public Map<String, List<ImageResponse>> listAllImagesWithPresignedUrls() {
         ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
                 .bucket(bucketName)
-                .prefix("imagens-originais/")
                 .build();
 
-        return s3Client.listObjectsV2(listRequest).contents().stream()
+        var images = s3Client.listObjectsV2(listRequest).contents();
+
+        var originais = images.stream()
+                .filter(s3Object -> s3Object.key().startsWith("imagens-originais/"))
                 .map(s3Object -> new ImageResponse(
                         s3Object.key(),
                         generatePresignedUrl(s3Object.key())
                 ))
                 .toList();
+        var processadas = images.stream()
+                .filter(s3Object -> s3Object.key().startsWith("imagens-processadas/"))
+                .map(s3Object -> new ImageResponse(
+                        s3Object.key(),
+                        generatePresignedUrl(s3Object.key())
+                ))
+                .toList();
+
+        return Map.of("originais", originais, "processadas", processadas);
     }
 
 }
