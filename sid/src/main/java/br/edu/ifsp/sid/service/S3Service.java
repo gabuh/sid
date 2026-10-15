@@ -86,6 +86,7 @@ public class S3Service {
 
         var originais = images.stream()
                 .filter(s3Object -> s3Object.key().startsWith("imagens-originais/"))
+                .filter(S3Object -> !S3Object.key().endsWith("/"))
                 .map(s3Object -> new ImageResponse(
                         s3Object.key(),
                         generatePresignedUrl(s3Object.key())
@@ -93,6 +94,7 @@ public class S3Service {
                 .toList();
         var processadas = images.stream()
                 .filter(s3Object -> s3Object.key().startsWith("imagens-processadas/"))
+                .filter(S3Object -> !S3Object.key().endsWith("/"))
                 .map(s3Object -> new ImageResponse(
                         s3Object.key(),
                         generatePresignedUrl(s3Object.key())
