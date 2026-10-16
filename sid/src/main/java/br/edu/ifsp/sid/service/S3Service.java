@@ -13,6 +13,8 @@ import org.springframework.web.multipart.MultipartFile;
 import br.edu.ifsp.sid.dto.ImageResponse;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -76,6 +78,18 @@ public class S3Service {
         return s3Presigner.presignGetObject(presignRequest).url().toExternalForm();
     }
 
+    public Boolean deleteImage(String key) {
+        DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
+        .bucket(bucketName)
+        .key(key)
+        .build();
+
+        DeleteObjectResponse response = s3Client.deleteObject(deleteObjectRequest);
+
+        return response.deleteMarker();
+
+    }
+
 
     public Map<String, List<ImageResponse>> listAllImagesWithPresignedUrls() {
         ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
@@ -86,6 +100,7 @@ public class S3Service {
 
         var originais = images.stream()
                 .filter(s3Object -> s3Object.key().startsWith("imagens-originais/"))
+                .filter(S3Object -> !S3Object.key().endsWith("/"))
                 .map(s3Object -> new ImageResponse(
                         s3Object.key(),
                         generatePresignedUrl(s3Object.key())
@@ -93,6 +108,7 @@ public class S3Service {
                 .toList();
         var processadas = images.stream()
                 .filter(s3Object -> s3Object.key().startsWith("imagens-processadas/"))
+                .filter(S3Object -> !S3Object.key().endsWith("/"))
                 .map(s3Object -> new ImageResponse(
                         s3Object.key(),
                         generatePresignedUrl(s3Object.key())
