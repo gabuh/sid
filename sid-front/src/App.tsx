@@ -10,7 +10,7 @@ type ImageItem = {
 }
 
 interface ImageResponse {
-  filename: string
+  fileName: string
   url: string
 }
 
@@ -47,7 +47,7 @@ function isAcceptedImageFile(file: File) {
 function normalizeImages(items: ImageResponse[]): ImageItem[] {
   return items.map((image, index) => ({
     id: `${index}-${image.url}`,
-    filename: image.filename,
+    filename: image.fileName,
     url: image.url,
   }))
 }
@@ -120,6 +120,8 @@ export default function App() {
     } else {
       setImages(updateImages)
       setSelectedImage((current) => current?.id === image.id ? loadedImage : current)
+    console.log("Selected imag3e")
+    console.log(loadedImage)
     }
   }
 
@@ -188,6 +190,22 @@ export default function App() {
       await loadImages()
     } catch {
       setMessage('Upload failed. Please try again.')
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const deleteImage = async (key: string) => {
+    if (!selectedProcessedImage && !selectedImage) return
+    setIsUploading(true)
+    setMessage('')
+    try {
+      const response = await axios.delete<boolean>(API_URL, { params: {key: key} })
+      response.data ? alert('Imagem apagada com sucesso.') : alert('Imagem não apagada.')
+      setSelectedFile(null)
+      await loadImages()
+    } catch {
+      setMessage('delete failed. Please try again.')
     } finally {
       setIsUploading(false)
     }
@@ -284,7 +302,9 @@ export default function App() {
             {selectedImage && (
               <div className="mt-6 border-t border-slate-200 pt-5">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Selected image</p>
-                <ImageInfo image={selectedImage} />
+                <ImageInfo image={selectedImage}/>
+                <button className="bg-red-700 text-white rounded-full hover:bg-red-900 font-bold py-2 px-4" type='button' onClick={()=>deleteImage(selectedImage.filename)}>Delete</button>
+
               </div>
             )}
           </section>
@@ -319,6 +339,7 @@ export default function App() {
               <div className="mt-6 border-t border-slate-200 pt-5">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Selected image</p>
                 <ImageInfo image={selectedProcessedImage} />
+                <button className="bg-red-700 text-white rounded-full hover:bg-red-900 font-bold py-2 px-4" type='button' onClick={()=>deleteImage(selectedProcessedImage.filename)}>Delete</button>
               </div>
             )}
           </section>
