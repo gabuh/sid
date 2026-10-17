@@ -14,9 +14,10 @@ import br.edu.ifsp.sid.dto.ImageResponse;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
-import software.amazon.awssdk.services.s3.model.DeleteObjectResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
@@ -79,14 +80,29 @@ public class S3Service {
     }
 
     public Boolean deleteImage(String key) {
-        DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
-        .bucket(bucketName)
-        .key(key)
-        .build();
 
-        DeleteObjectResponse response = s3Client.deleteObject(deleteObjectRequest);
+        try {
 
-        return response.deleteMarker();
+            HeadObjectRequest headRequest = HeadObjectRequest.builder()
+                .bucket(bucketName)
+                .key(key)
+                .build();
+            s3Client.headObject(headRequest);
+
+            DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
+            .bucket(bucketName)
+            .key(key)
+            .build();
+    
+            s3Client.deleteObject(deleteObjectRequest);
+
+            return true;
+        } catch (NoSuchKeyException e) {
+            return false;
+        }
+
+
+
 
     }
 
