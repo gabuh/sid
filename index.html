@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Processamento de Imagens com S3 e Lambda - Grupo 3</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Google Fonts -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            aws: {
+              orange: '#ff9900',
+              squid: '#232f3e',
+              dark: '#0f172a',
+              card: '#1e293b',
+              blue: '#00a4e4',
+              purple: '#8b5cf6',
+              accent: '#f59e0b'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            title: ['Plus Jakarta Sans', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Estilos Customizados para Apresentação */
+    body {
+      background-color: #090d16;
+      color: #f8fafc;
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
+    }
+
+    .slide-viewport {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .slide {
+      display: none;
+      width: 100%;
+      height: calc(100vh - 80px);
+      padding: 2.5rem 3.5rem;
+      box-sizing: border-box;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 0.35s ease, transform 0.35s ease;
+      overflow-y: auto;
+    }
+
+    .slide.active {
+      display: flex;
+      flex-direction: column;
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Scrollbar elegante */
+    .slide::-webkit-scrollbar {
+      width: 6px;
+    }
+    .slide::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+
+    /* Efeitos de brilho e glassmorphism */
+    .glass-card {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    .glow-orange {
+      box-shadow: 0 0 25px rgba(255, 153, 0, 0.25);
+    }
+
+    .glow-purple {
+      box-shadow: 0 0 25px rgba(139, 92, 246, 0.25);
+    }
+
+    .glow-red {
+      box-shadow: 0 0 35px rgba(244, 63, 94, 0.4);
+    }
+
+    /* Animação do servidor balançando no crash */
+    @keyframes shake {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      20% { transform: translate(-4px, 4px) rotate(-1deg); }
+      40% { transform: translate(4px, -4px) rotate(1deg); }
+      60% { transform: translate(-4px, -2px) rotate(-1deg); }
+      80% { transform: translate(4px, 2px) rotate(1deg); }
+    }
+
+    .shake-animation {
+      animation: shake 0.15s infinite;
+    }
+
+    /* Pulsar suave */
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.05); }
+    }
+    .pulse-effect {
+      animation: pulse-glow 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased selection:bg-amber-500 selection:text-slate-900">
+
+  <div class="slide-viewport">
+    
+    <!-- CABEÇALHO / TOP BAR -->
+    <header class="h-14 border-b border-slate-800/80 bg-slate-900/90 px-8 flex items-center justify-between text-xs font-mono tracking-wider text-slate-400 z-50">
+      <div class="flex items-center gap-3">
+        <span class="bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded-md font-bold flex items-center gap-1.5">
+          <i class="fa-brands fa-aws text-amber-500 text-sm"></i> GRUPO 3
+        </span>
+        <span class="hidden md:inline text-slate-500">|</span>
+        <span class="hidden md:inline text-slate-300 font-sans font-medium text-sm">Processamento Serverless de Imagens</span>
+      </div>
+
+      <!-- Barra de Progresso do Slide -->
+      <div class="flex items-center gap-4">
+        <div class="w-48 bg-slate-800 h-1.5 rounded-full overflow-hidden">
+          <div id="progress-bar" class="bg-gradient-to-r from-amber-500 to-violet-500 h-full w-1/12 transition-all duration-300"></div>
+        </div>
+        <span id="slide-indicator" class="text-amber-400 font-bold text-sm">01 / 12</span>
+      </div>
+
+      <!-- Ações rápidas -->
+      <div class="flex items-center gap-2">
+        <button onclick="toggleFullscreen()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition" title="Tela Cheia">
+          <i class="fa-solid fa-expand"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- ÁREA DE CONTEÚDO DOS SLIDES -->
+    <main class="flex-1 relative overflow-hidden bg-slate-950">
+      
+      <!-- SLIDE 1: CAPA -->
+      <section class="slide active" id="slide-1">
+        <div class="h-full flex flex-col justify-center items-center text-center max-w-5xl mx-auto py-8">
+          <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm font-semibold mb-6 animate-pulse">
+            <i class="fa-solid fa-bolt"></i> Arquitetura Orientada a Eventos
+          </div>
+          
+          <h1 class="font-title font-extrabold text-4xl sm:text-6xl text-white tracking-tight leading-tight mb-6">
+            Processamento de Imagens com <br/>
+            <span class="bg-gradient-to-r from-amber-400 via-orange-500 to-violet-400 bg-clip-text text-transparent">AWS S3 & AWS Lambda</span>
+          </h1>
+          
+          <p class="text-slate-300 text-lg sm:text-xl max-w-3xl font-light mb-10 leading-relaxed">
+            Geração automática e otimizada de miniaturas (<span class="text-amber-400 font-medium">Thumbnails</span>) utilizando reatividade na nuvem, desacoplada com <span class="text-cyan-400 font-medium">React</span> e <span class="text-emerald-400 font-medium">Java Spring Boot</span>.
+          </p>
+
+          <!-- Badges de Tecnologias -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-3xl">
+            <div class="glass-card p-4 rounded-xl flex items-center justify-center gap-3 border-amber-500/20">
+              <i class="fa-brands fa-aws text-2xl text-amber-500"></i>
+              <div class="text-left">
+                <div class="text-xs text-slate-400 font-mono">STORAGE</div>
+                <div class="text-sm font-bold text-white">AWS S3</div>
+              </div>
+            </div>
+            <div class="glass-card p-4 rounded-xl flex items-center justify-center gap-3 border-violet-500/20">
+              <i class="fa-solid fa-bolt-lightning text-2xl text-violet-400"></i>
+              <div class="text-left">
+                <div class="text-xs text-slate-400 font-mono">COMPUTE</div>
+                <div class="text-sm font-bold text-white">AWS Lambda</div>
+              </div>
+            </div>
+            <div class="glass-card p-4 rounded-xl flex items-center justify-center gap-3 border-cyan-500/20">
+              <i class="fa-brands fa-react text-2xl text-cyan-400"></i>
+              <div class="text-left">
+                <div class="text-xs text-slate-400 font-mono">FRONTEND</div>
+                <div class="text-sm font-bold text-white">React SPA</div>
+              </div>
+            </div>
+            <div class="glass-card p-4 rounded-xl flex items-center justify-center gap-3 border-emerald-500/20">
+              <i class="fa-brands fa-java text-2xl text-emerald-400"></i>
+              <div class="text-left">
+                <div class="text-xs text-slate-400 font-mono">BACKEND API</div>
+                <div class="text-sm font-bold text-white">Spring Boot</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 2: COMPARAÇÃO E ANIMAÇÕES INTERATIVAS DA ARQUITETURA -->
+      <section class="slide" id="slide-2">
+        <div class="mb-4 flex flex-col md:flex-row md:items-end justify-between gap-2">
+          <div>
+            <div class="text-amber-400 font-mono text-xs font-bold tracking-widest uppercase mb-1">Demonstração Visual Comparativa</div>
+            <h2 class="font-title text-2xl sm:text-3xl font-extrabold text-white">Abordagem Monolítica vs. Serverless (S3 + Lambda)</h2>
+          </div>
+          <div class="text-xs text-slate-400 font-mono bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            Simulação Interativa em Tempo Real
+          </div>
+        </div>
+
+        <!-- Container Lado a Lado das Animações -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 items-stretch">
+          
+          <!-- ANIMAÇÃO 1: MONÓLITO -->
+          <div class="glass-card rounded-2xl p-5 border-rose-500/30 flex flex-col justify-between relative overflow-hidden bg-slate-900/90">
+            <!-- Header do card -->
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid fa-server text-rose-500 text-lg"></i>
+                <h3 class="font-title font-bold text-base text-slate-200">1. Abordagem Tradicional (Servidor Único)</h3>
+              </div>
+              <span id="mono-status-badge" class="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                SAUDÁVEL
+              </span>
+            </div>
+
+            <!-- Canvas/Área da Animação Monólito -->
+            <div class="relative my-3 h-56 bg-slate-950/80 rounded-xl border border-slate-800 overflow-hidden flex items-center justify-center" id="mono-canvas-container">
+              
+              <!-- Cliente -->
+              <div class="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1 z-10">
+                <div class="w-12 h-12 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-cyan-400 shadow-lg">
+                  <i class="fa-solid fa-laptop-code text-xl"></i>
+                </div>
+                <span class="text-[10px] font-mono text-slate-400">Clientes</span>
+              </div>
+
+              <!-- Fluxo de Partículas (Injetado via JS) -->
+              <div id="mono-particles" class="absolute inset-0 pointer-events-none"></div>
+
+              <!-- Servidor Monolítico -->
+              <div id="mono-server" class="relative z-10 w-24 h-24 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-slate-600 flex flex-col items-center justify-center gap-1 transition-all duration-300 shadow-2xl">
+                <i id="mono-server-icon" class="fa-solid fa-microchip text-3xl text-slate-300"></i>
+                <span id="mono-server-label" class="text-[11px] font-bold font-mono text-slate-200">API Server</span>
+                <div class="w-16 bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-700 mt-1">
+                  <div id="mono-cpu-bar" class="bg-emerald-500 h-full w-1/5 transition-all duration-200"></div>
+                </div>
+              </div>
+
+              <!-- Overlay de Crash -->
+              <div id="mono-crash-overlay" class="absolute inset-0 bg-rose-950/90 backdrop-blur-sm flex flex-col items-center justify-center gap-2 opacity-0 pointer-events-none transition-opacity duration-300 z-20">
+                <i class="fa-solid fa-triangle-exclamation text-4xl text-rose-500 animate-bounce"></i>
+                <span class="font-title font-extrabold text-xl text-white">503 SERVICE UNAVAILABLE</span>
+                <span class="text-xs text-rose-300 font-mono">Servidor travado por falta de memória/CPU!</span>
+              </div>
+            </div>
+
+            <!-- Métricas e Controles -->
+            <div class="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
+              <div class="flex items-center gap-4 font-mono">
+                <div>
+                  <span class="text-slate-400">Carga CPU:</span>
+                  <span id="mono-cpu-val" class="font-bold text-emerald-400">22%</span>
+                </div>
+                <div>
+                  <span class="text-slate-400">Fila Req:</span>
+                  <span id="mono-queue-val" class="font-bold text-slate-200">0</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="monoSim.start()" class="px-3 py-1.5 rounded-md bg-rose-600 hover:bg-rose-500 text-white font-semibold transition flex items-center gap-1.5 text-xs">
+                  <i class="fa-solid fa-play"></i> Simular Carga
+                </button>
+                <button onclick="monoSim.reset()" class="px-2.5 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-xs">
+                  <i class="fa-solid fa-rotate-left"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ANIMAÇÃO 2: SERVERLESS S3 + LAMBDA -->
+          <div class="glass-card rounded-2xl p-5 border-violet-500/30 flex flex-col justify-between relative overflow-hidden bg-slate-900/90">
+            <!-- Header do card -->
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid fa-bolt-lightning text-amber-400 text-lg"></i>
+                <h3 class="font-title font-bold text-base text-slate-200">2. Abordagem Serverless (S3 + Lambda)</h3>
+              </div>
+              <span id="sls-status-badge" class="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-violet-500/10 text-violet-400 border border-violet-500/20">
+                OCIOSO (ZERO COST)
+              </span>
+            </div>
+
+            <!-- Canvas/Área da Animação Serverless -->
+            <div class="relative my-3 h-56 bg-slate-950/80 rounded-xl border border-slate-800 overflow-hidden flex items-center justify-between px-6" id="sls-canvas-container">
+              
+              <!-- Cliente -->
+              <div class="flex flex-col items-center gap-1 z-10">
+                <div class="w-12 h-12 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-cyan-400 shadow-lg">
+                  <i class="fa-solid fa-laptop-code text-xl"></i>
+                </div>
+                <span class="text-[10px] font-mono text-slate-400">Upload React</span>
+              </div>
+
+              <!-- S3 Bucket Origem -->
+              <div class="flex flex-col items-center gap-1 z-10">
+                <div class="w-14 h-14 rounded-xl bg-amber-500/10 border-2 border-amber-500/50 flex flex-col items-center justify-center text-amber-400 shadow-lg">
+                  <i class="fa-solid fa-box-archive text-xl"></i>
+                  <span class="text-[9px] font-bold font-mono">S3 Upload</span>
+                </div>
+              </div>
+
+              <!-- Cluster de Lambdas Dinâmicas -->
+              <div class="flex-1 px-4 flex flex-col items-center justify-center gap-2 z-10">
+                <div class="text-[10px] font-mono text-slate-400 mb-1 flex items-center gap-1">
+                  <i class="fa-solid fa-network-wired text-violet-400"></i> Instâncias Lambda Ativas:
+                </div>
+                <!-- Container onde instâncias de Lambda são criadas dinamicamente -->
+                <div id="sls-lambda-pool" class="flex flex-wrap justify-center gap-1.5 max-w-[180px] min-h-[60px] p-2 bg-slate-900/60 rounded-lg border border-slate-800 transition-all">
+                  <span class="text-[11px] text-slate-500 italic font-mono self-center">Scale to Zero (0 instâncias)</span>
+                </div>
+              </div>
+
+              <!-- S3 Bucket Destino (Thumbnails) -->
+              <div class="flex flex-col items-center gap-1 z-10">
+                <div class="w-14 h-14 rounded-xl bg-emerald-500/10 border-2 border-emerald-500/50 flex flex-col items-center justify-center text-emerald-400 shadow-lg">
+                  <i class="fa-solid fa-images text-xl"></i>
+                  <span class="text-[9px] font-bold font-mono">S3 Thumbs</span>
+                </div>
+              </div>
+
+              <!-- Fluxo de Partículas Serverless (Injetado via JS) -->
+              <div id="sls-particles" class="absolute inset-0 pointer-events-none"></div>
+            </div>
+
+            <!-- Métricas e Controles -->
+            <div class="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
+              <div class="flex items-center gap-4 font-mono">
+                <div>
+                  <span class="text-slate-400">Lambdas:</span>
+                  <span id="sls-count-val" class="font-bold text-violet-400">0</span>
+                </div>
+                <div>
+                  <span class="text-slate-400">Processadas:</span>
+                  <span id="sls-processed-val" class="font-bold text-emerald-400">0</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="serverlessSim.start()" class="px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-500 text-white font-semibold transition flex items-center gap-1.5 text-xs">
+                  <i class="fa-solid fa-bolt"></i> Simular Pico Massivo
+                </button>
+                <button onclick="serverlessSim.reset()" class="px-2.5 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-xs">
+                  <i class="fa-solid fa-rotate-left"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- SLIDE 3: O QUE É O AWS S3 -->
+      <section class="slide" id="slide-3">
+        <div class="max-w-5xl mx-auto w-full h-full flex flex-col justify-center">
+          <div class="text-amber-400 font-mono text-xs font-bold tracking-widest uppercase mb-2">Fundamentação de Infraestrutura</div>
+          <h2 class="font-title text-3xl sm:text-4xl font-extrabold text-white mb-6">O que é o AWS S3 (Simple Storage Service)?</h2>
+          
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="glass-card p-6 rounded-2xl border-amber-500/20 flex flex-col justify-between">
+              <div>
+                <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-2xl mb-4">
+                  <i class="fa-solid fa-cube"></i>
+                </div>
+                <h3 class="font-title font-bold text-lg text-white mb-2">Armazenamento em Objeto</h3>
+                <p class="text-slate-300 text-sm leading-relaxed">Diferente de sistemas de arquivos tradicionais, salva arquivos como objetos contendo dados, metadados e chave única de acesso.</p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-800 text-xs font-mono text-amber-400">Organização via Buckets</div>
+            </div>
+
+            <div class="glass-card p-6 rounded-2xl border-amber-500/20 flex flex-col justify-between">
+              <div>
+                <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-2xl mb-4">
+                  <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <h3 class="font-title font-bold text-lg text-white mb-2">Durabilidade dos Dados</h3>
+                <p class="text-slate-300 text-sm leading-relaxed">Projetado para <b>99,999999999% (11 noves)</b> de durabilidade, replicando arquivos em múltiplas Zonas de Disponibilidade (AZs).</p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-800 text-xs font-mono text-amber-400">Resiliência Empresarial</div>
+            </div>
+
+            <div class="glass-card p-6 rounded-2xl border-amber-500/20 flex flex-col justify-between">
+              <div>
+                <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-2xl mb-4">
+                  <i class="fa-solid fa-bell"></i>
+                </div>
+                <h3 class="font-title font-bold text-lg text-white mb-2">Gatilhos de Eventos</h3>
+                <p class="text-slate-300 text-sm leading-relaxed">Capacidade nativa de emitir notificações instantâneas (ex: <code class="text-amber-300">s3:ObjectCreated:*</code>) sempre que um novo arquivo é enviado.</p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-800 text-xs font-mono text-amber-400">Event-Driven Trigger</div>
+            </div>
+          </div>
+
+          <!-- Highlight Box -->
+          <div class="p-5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-4">
+            <i class="fa-solid fa-circle-info text-2xl text-amber-400 shrink-0"></i>
+            <p class="text-sm text-slate-300">
+              <b>No nosso projeto:</b> O S3 atua em duas frentes: como <i>bucket de upload original</i> recebendo fotos enviadas pelo backend Java e como <i>bucket público de distribuição</i> servindo as miniaturas finais.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 4: O QUE É O AWS LAMBDA -->
+      <section class="slide" id="slide-4">
+        <div class="max-w-5xl mx-auto w-full h-full flex flex-col justify-center">
+          <div class="text-violet-400 font-mono text-xs font-bold tracking-widest uppercase mb-2">Computação Sem Servidor</div>
+          <h2 class="font-title text-3xl sm:text-4xl font-extrabold text-white mb-6">O que é o AWS Lambda (FaaS)?</h2>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
+            <div class="space-y-4">
+              <div class="glass-card p-5 rounded-xl border-violet-500/20 flex items-start gap-4">
+                <div class="p-3 bg-violet-500/10 text-violet-400 rounded-lg text-xl font-bold">1</div>
+                <div>
+                  <h3 class="font-title font-bold text-base text-white mb-1">Zero Administração de Servidores</h3>
+                  <p class="text-xs text-slate-300">Não há necessidade de provisionar, atualizar ou manter sistemas operacionais, instâncias EC2 ou contêineres manuais.</p>
+                </div>
+              </div>
+
+              <div class="glass-card p-5 rounded-xl border-violet-500/20 flex items-start gap-4">
+                <div class="p-3 bg-violet-500/10 text-violet-400 rounded-lg text-xl font-bold">2</div>
+                <div>
+                  <h3 class="font-title font-bold text-base text-white mb-1">Execução Sob Demanda (Event-Driven)</h3>
+                  <p class="text-xs text-slate-300">O código permanece inativo (sem custo) até que um evento específico no S3 o invoque para executar a tarefa.</p>
+                </div>
+              </div>
+
+              <div class="glass-card p-5 rounded-xl border-violet-500/20 flex items-start gap-4">
+                <div class="p-3 bg-violet-500/10 text-violet-400 rounded-lg text-xl font-bold">3</div>
+                <div>
+                  <h3 class="font-title font-bold text-base text-white mb-1">Escala Automática Milissegunda</h3>
+                  <p class="text-xs text-slate-300">Se 1 ou 10.000 imagens forem enviadas simultaneamente, a AWS instancia cópias paralelas da função automaticamente.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card Ilustrativo de Funcionamento -->
+            <div class="glass-card p-6 rounded-2xl border-violet-500/30 flex flex-col justify-between bg-slate-900/90">
+              <div>
+                <div class="flex items-center justify-between mb-4">
+                  <span class="text-xs font-mono text-violet-400">CICLO DE VIDA LAMBDA</span>
+                  <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-mono">MILISSEGUNDOS</span>
+                </div>
+
+                <div class="space-y-3 font-mono text-xs">
+                  <div class="p-2.5 rounded bg-slate-950 border border-slate-800 text-slate-300 flex items-center justify-between">
+                    <span>1. Evento s3:ObjectCreated</span>
+                    <i class="fa-solid fa-arrow-right text-amber-400"></i>
+                  </div>
+                  <div class="p-2.5 rounded bg-slate-950 border border-slate-800 text-slate-300 flex items-center justify-between">
+                    <span>2. Spin-up de container limpo</span>
+                    <i class="fa-solid fa-microchip text-violet-400"></i>
+                  </div>
+                  <div class="p-2.5 rounded bg-slate-950 border border-slate-800 text-slate-300 flex items-center justify-between">
+                    <span>3. Redimensionamento Imagem</span>
+                    <i class="fa-solid fa-gear text-cyan-400"></i>
+                  </div>
+                  <div class="p-2.5 rounded bg-slate-950 border border-slate-800 text-slate-300 flex items-center justify-between">
+                    <span>4. Salvamento & Descarte Pod</span>
+                    <i class="fa-solid fa-check text-emerald-400"></i>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-6 p-3 rounded-lg bg-violet-500/10 border border-violet-500/30 text-center text-xs text-violet-300">
+                <b>Pagamento por milissegundo:</b> Só paga enquanto a função está rodando!
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 5: VANTAGENS S3 + LAMBDA -->
+      <section class="slide" id="slide-5">
+        <div class="max-w-5xl mx-auto w-full h-full flex flex-col justify-center">
+          <div class="text-amber-400 font-mono text-xs font-bold tracking-widest uppercase mb-2">Por Que Escolhemos Essa Arquitetura?</div>
+          <h2 class="font-title text-3xl sm:text-4xl font-extrabold text-white mb-8">VantagensCompetitivas do Par S3 + Lambda</h2>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div class="glass-card p-5 rounded-xl border-slate-700 hover:border-amber-500/50 transition">
+              <i class="fa-solid fa-sack-dollar text-3xl text-amber-400 mb-3"></i>
+              <h3 class="font-title font-bold text-base text-white mb-1">Custo Zero Ocioso</h3>
+              <p class="text-xs text-slate-300 leading-relaxed">Em servidores normais você paga 24 horas por dia. No Lambda você só paga os instantes exatos de processamento da foto.</p>
+            </div>
+
+            <div class="glass-card p-5 rounded-xl border-slate-700 hover:border-violet-500/50 transition">
+              <i class="fa-solid fa-link-slash text-3xl text-violet-400 mb-3"></i>
+              <h3 class="font-title font-bold text-base text-white mb-1">Desacoplamento Total</h3>
+              <p class="text-xs text-slate-300 leading-relaxed">A API Spring Boot não fica presa processando bytes pesados de imagem. Ela apenas autoriza e registra a operação.</p>
+            </div>
+
+            <div class="glass-card p-5 rounded-xl border-slate-700 hover:border-cyan-500/50 transition">
+              <i class="fa-solid fa-shield-cat text-3xl text-cyan-400 mb-3"></i>
+              <h3 class="font-title font-bold text-base text-white mb-1">Isolamento de Falhas</h3>
+              <p class="text-xs text-slate-300 leading-relaxed">Se uma imagem corrompida travar o Lambda, apenas aquele evento falha. Toda a aplicação Spring Boot continua 100% online.</p>
+            </div>
+
+            <div class="glass-card p-5 rounded-xl border-slate-700 hover:border-emerald-500/50 transition">
+              <i class="fa-solid fa-chart-line text-3xl text-emerald-400 mb-3"></i>
+              <h3 class="font-title font-bold text-base text-white mb-1">Escala Infinita</h3>
+              <p class="text-xs text-slate-300 leading-relaxed">Capacidade automática de lidar com explosões de tráfego (ex: Black Friday) sem necessidade de reconfiguração de infraestrutura.</p>
+            </div>
+          </div>
+
+          <div class="mt-8 p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs font-mono">
+            <span class="text-slate-400">Ferramenta alternativa tradicional (Monólito / Worker Fixo):</span>
+            <span class="text-rose-400 font-bold">Consumo Alto de RAM, Risco de OOM (Out Of Memory), Servidor Ocioso Pago</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 6: DIAGRAMA DA ARQUITETURA DO PROJETO -->
+      <section class="slide" id="slide-6">
+        <div class="max-w-6xl mx-auto w-full h-full flex flex-col justify-center">
+          <div class="text-amber-400 font-mono text-xs font-bold tracking-widest uppercase mb-2">Estrutura Técnica Completa</div>
+          <h2 class="font-title text-2xl sm:text-3xl font-extrabold text-white mb-6">Diagrama da Arquitetura do Projeto (Grupo 3)</h2>
+
+          <!-- Fluxograma Visual -->
+          <div class="glass-card p-8 rounded-2xl border-slate-700 bg-slate-900/90 relative overflow-hidden">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-center relative z-10">
+              
+              <!-- Passo 1 -->
+              <div class="p-4 rounded-xl bg-slate-950 border border-cyan-500/30 flex flex-col items-center text-center">
+                <i class="fa-brands fa-react text-3xl text-cyan-400 mb-2"></i>
+                <h4 class="font-title font-bold text-sm text-white">1. React SPA</h4>
+                <p class="text-[11px] text-slate-400 mt-1">Usuário seleciona foto e clica em Upload</p>
+              </div>
+
+              <!-- Seta -->
+              <div class="hidden md:flex justify-center text-slate-600 text-xl">
+                <i class="fa-solid fa-arrow-right text-cyan-400"></i>
+              </div>
+
+              <!-- Passo 2 -->
+              <div class="p-4 rounded-xl bg-slate-950 border border-emerald-500/30 flex flex-col items-center text-center">
+                <i class="fa-brands fa-java text-3xl text-emerald-400 mb-2"></i>
+                <h4 class="font-title font-bold text-sm text-white">2. Spring Boot API</h4>
+                <p class="text-[11px] text-slate-400 mt-1">Valida arquivo e envia para S3 via AWS SDK</p>
+              </div>
+
+              <!-- Seta -->
+              <div class="hidden md:flex justify-center text-slate-600 text-xl">
+                <i class="fa-solid fa-arrow-right text-emerald-400"></i>
+              </div>
+
+              <!-- Passo 3 -->
+              <div class="p-4 rounded-xl bg-slate-950 border border-amber-500/30 flex flex-col items-center text-center">
+                <i class="fa-solid fa-box-archive text-3xl text-amber-400 mb-2"></i>
+                <h4 class="font-title font-bold text-sm text-white">3. S3 Bucket (Origem)</h4>
+                <p class="text-[11px] text-slate-400 mt-1">Armazena imagem original em alta resolução</p>
+              </div>
+
+            </div>
+
+            <!-- Linha Conectora de Gatilho -->
+            <div class="my-6 flex items-center justify-center gap-3">
+              <div class="h-px bg-slate-800 flex-1"></div>
+              <span class="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-mono font-bold flex items-center gap-2">
+                <i class="fa-solid fa-bolt text-amber-500"></i> Evento Automático s3:ObjectCreated:*
+              </span>
+              <div class="h-px bg-slate-800 flex-1"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center relative z-10">
+              
+              <!-- Passo 4 -->
+              <div class="p-4 rounded-xl bg-slate-950 border border-violet-500/30 flex flex-col items-center text-center">
+                <i class="fa-solid fa-bolt-lightning text-3xl text-violet-400 mb-2"></i>
+                <h4 class="font-title font-bold text-sm text-white">4. AWS Lambda</h4>
+                <p class="text-[11px] text-slate-400 mt-1">Redimensiona imagem para thumbnail (ex: 150x150)</p>
+              </div>
+
+              <!-- Seta -->
+              <div class="hidden md:flex justify-center text-slate-600 text-xl">
+                <i class="fa-solid fa-arrow-right text-violet-400"></i>
+              </div>
+
+              <!-- Passo 5 -->
+              <div class="p-4 rounded-xl bg-slate-950 border border-emerald-500/30 flex flex-col items-center text-center">
+                <i class="fa-solid fa-images text-3xl text-emerald-400 mb-2"></i>
+                <h4 class="font-title font-bold text-sm text-white">5. S3 (Thumbnails)</h4>
+                <p class="text-[11px] text-slate-400 mt-1">Salva foto processada pronta para ser exibida no React</p>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 7: STACK TECNOLÓGICA (REACT + SPRING BOOT) -->
+      <section class="slide" id="slide-7">
+        <div class="max-w-5xl mx-auto w-full h-full flex flex-col justify-center">
+          <div class="text-cyan-400 font-mono text-xs font-bold tracking-widest uppercase mb-2">Desenvolvimento & Implementação</div>
+          <h2 class="font-title text-3xl sm:text-4xl font-extrabold text-white mb-6">Stack do Projeto: React & Java Spring Boot</h2>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- React Card -->
+            <div class="glass-card p-6 rounded-2xl border-cyan-500/30 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center gap-3 mb-4">
+                  <i class="fa-brands fa-react text-3xl text-cyan-400"></i>
+                  <div>
+                    <h3 class="font-title font-bold text-lg text-white">Frontend SPA (React)</h3>
+                    <span class="text-xs font-mono text-cyan-300">Interface do Usuário</span>
+                  </div>
+                </div>
+
+                <ul class="space-y-3 text-xs text-slate-300">
+                  <li class="flex items-start gap-2">
+                    <i class="fa-solid fa-check text-cyan-400 mt-0.5"></i>
+                    <span><b>Componente de Dropzone:</b> Drag & drop intuitivo de imagens.</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <i class="fa-solid fa-check text-cyan-400 mt-0.5"></i>
+                    <span><b>Estado Assíncrono:</b> Acompanhamento em tempo real do status de upload.</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <i class="fa-solid fa-check text-cyan-400 mt-0.5"></i>
+                    <span><b>Galeria Reativa:</b> Renderização imediata da Thumbnail gerada pelo S3.</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="mt-6 p-3 rounded-lg bg-slate-950 font-mono text-[11px] text-cyan-300 border border-slate-800">
+                // React Upload Handler<br/>
+                const res = await api.post('/images/upload', formData);
+              </div>
+            </div>
+
+            <!-- Spring Boot Card -->
+            <div class="glass-card p-6 rounded-2xl border-emerald-500/30 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center gap-3 mb-4">
+                  <i class="fa-brands fa-java text-3xl text-emerald-400"></i>
+                  <div>
+                    <h3 class="font-title font-bold text-lg text-white">Backend API (Spring Boot)</h3>
+                    <span class="text-xs font-mono text-emerald-300">Integração & Orquestração</span>
+                  </div>
+                </div>
+
+                <ul class="space-y-3 text-xs text-slate-300">
+                  <li class="flex items-start gap-2">
+                    <i class="fa-solid fa-check text-emerald-400 mt-0.5"></i>
+                    <span><b>AWS SDK v2 para Java:</b> Comunicação direta com a credencial IAM.</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <i class="fa-solid fa-check text-emerald-400 mt-0.5"></i>
+                    <span><b>MultipartFile Controller:</b> Recebe imagem do React sem sobrecarregar a memória.</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <i class="fa-solid fa-check text-emerald-400 mt-0.5"></i>
+                    <span><b>Segurança IAM:</b> Geração de chaves temporárias e acesso restrito aos buckets.</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="mt-6 p-3 rounded-lg bg-slate-950 font-mono text-[11px] text-emerald-300 border border-slate-800">
+                // Spring Boot Controller<br/>
+                s3Client.putObject(PutObjectRequest.builder()...);
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 8: CASOS DE USO NO MERCADO -->
+      <section class="slide" id="slide-8">
+        <div class="max-w-5xl mx-auto w-full h-full flex flex-col justify-center">
+          <div class="text-violet-400 font-mono text-xs font-bold tracking-widest uppercase mb-2">Aplicações Práticas</div>
+          <h2 class="font-title text-3xl sm:text-4xl font-extrabold text-white mb-8">Onde Essa Solução É Utilizada no Mercado?</h2>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="glass-card p-6 rounded-2xl border-slate-800 flex items-start gap-4">
+              <div class="p-3 bg-amber-500/10 text-amber-400 rounded-xl text-2xl shrink-0">
+                <i class="fa-solid fa-cart-shopping"></i>
+              </div>
+              <div>
+                <h3 class="font-title font-bold text-base text-white mb-1">Plataformas de E-Commerce</h3>
+                <p class="text-xs text-slate-300 leading-relaxed">Vendedores sobem fotos em alta resolução de produtos. O Lambda gera automaticamente miniaturas otimizadas para os cards do catálogo e aplicativo móvel.</p>
+              </div>
+            </div>
+
+            <div class="glass-card p-6 rounded-2xl border-slate-800 flex items-start gap-4">
+              <div class="p-3 bg-violet-500/10 text-violet-400 rounded-xl text-2xl shrink-0">
+                <i class="fa-solid fa-users"></i>
+              </div>
+              <div>
+                <h3 class="font-title font-bold text-base text-white mb-1">Redes Sociais & Portais</h3>
+                <p class="text-xs text-slate-300 leading-relaxed">Processamento imediato de fotos de perfil (avatars) e posts. Recorte, compressão WebP e criação de thumbnails no momento da postagem.</p>
+              </div>
+            </div>
+
+            <div class="glass-card p-6 rounded-2xl border-slate-800 flex items-start gap-4">
+              <div class="p-3 bg-cyan-500/10 text-cyan-400 rounded-xl text-2xl shrink-0">
+                <i class="fa-solid fa-id-card"></i>
+              </div>
+              <div>
+                <h3 class="font-title font-bold text-base text-white mb-1">Validação de Documentos (KYC)</h3>
+                <p class="text-xs text-slate-300 leading-relaxed">Bancos digitais e fintechs recebem fotos de CNH/RG. O Lambda ajusta a nitidez, reduz peso e aciona inteligência artificial para leitura facial.</p>
+              </div>
+            </div>
+
+            <div class="glass-card p-6 rounded-2xl border-slate-800 flex items-start gap-4">
+              <div class="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl text-2xl shrink-0">
+                <i class="fa-solid fa-notes-medical"></i>
+              </div>
+              <div>
+                <h3 class="font-title font-bold text-base text-white mb-1">Telemedicina & Laudos</h3>
+                <p class="text-xs text-slate-300 leading-relaxed">Sistemas médicos geram prévias rápidas de exames de imagem radiológicos para visualização em conexões móveis lentas.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 9: ANÁLISE DE CUSTOS AWS -->
+      <section class="slide" id="slide-9">
+        <div class="max-w-5xl mx-auto w-full h-full flex flex-col justify-center">
+          <div class="text-amber-400 font-mono text-xs font-bold tracking-widest uppercase mb-2">AWS Calculator & Viabilidade</div>
+          <h2 class="font-title text-3xl sm:text-4xl font-extrabold text-white mb-6">Análise de Custos com S3 e Lambda</h2>
+          
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="glass-card p-6 rounded-2xl border-amber-500/30 text-center flex flex-col items-center justify-center">
+              <div class="text-4xl font-black text-amber-400 font-mono mb-2">1 MILHÃO</div>
+              <div class="text-sm font-bold text-white">Requisições Grátis / Mês</div>
+              <p class="text-xs text-slate-400 mt-2">No AWS Lambda Free Tier permanente para todas as contas.</p>
+            </div>
+
+            <div class="glass-card p-6 rounded-2xl border-emerald-500/30 text-center flex flex-col items-center justify-center">
+              <div class="text-4xl font-black text-emerald-400 font-mono mb-2">5 GB</div>
+              <div class="text-sm font-bold text-white">Armazenamento Grátis</div>
+              <p class="text-xs text-slate-400 mt-2">No AWS S3 Standard durante o primeiro ano de uso.</p>
+            </div>
+
+            <div class="glass-card p-6 rounded-2xl border-violet-500/30 text-center flex flex-col items-center justify-center">
+              <div class="text-4xl font-black text-violet-400 font-mono mb-2">~ R$ 0,00</div>
+              <div class="text-sm font-bold text-white">Custo Total do Projeto</div>
+              <p class="text-xs text-slate-400 mt-2">Para o volume universitário de testes de apresentação.</p>
+            </div>
+          </div>
+
+          <!-- Tabela de Simulação em Escala -->
+          <div class="glass-card p-6 rounded-2xl border-slate-800">
+            <h3 class="font-title font-bold text-base text-white mb-4 flex items-center gap-2">
+              <i class="fa-solid fa-calculator text-amber-400"></i> Simulação em Produção (100.000 fotos/mês)
+            </h3>
+            
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs font-mono">
+                <thead class="bg-slate-950 text-slate-400 border-b border-slate-800">
+                  <tr>
+                    <th class="p-3">Recurso AWS</th>
+                    <th class="p-3">Uso Estimado</th>
+                    <th class="p-3">Custo Unitário</th>
+                    <th class="p-3 text-right">Custo Mensal ($ USD)</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800 text-slate-300">
+                  <tr>
+                    <td class="p-3 font-bold text-amber-400">AWS Lambda Execuções</td>
+                    <td class="p-3">100.000 invocações (500ms cada)</td>
+                    <td class="p-3">$0,0000000021 por ms</td>
+                    <td class="p-3 text-right font-bold text-emerald-400">$0,00 (Coberto)</td>
+                  </tr>
+                  <tr>
+                    <td class="p-3 font-bold text-amber-400">AWS S3 Armazenamento</td>
+                    <td class="p-3">20 GB de imagens + thumbnails</td>
+                    <td class="p-3">$0,023 por GB</td>
+                    <td class="p-3 text-right font-bold text-emerald-400">$0,46 USD</td>
+                  </tr>
+                  <tr>
+                    <td class="p-3 font-bold text-amber-400">Transferência de Dados (GET)</td>
+                    <td class="p-3">100.000 requisições de leitura</td>
+                    <td class="p-3">$0,0004 por 1.000 req</td>
+                    <td class="p-3 text-right font-bold text-emerald-400">$0,04 USD</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 10: O PROCESSAMENTO EM SI (DENTRO DA LAMBDA) -->
+      <section class="slide" id="slide-10">
+        <div class="max-w-5xl mx-auto w-full h-full flex flex-col justify-center">
+          <div class="text-violet-400 font-mono text-xs font-bold tracking-widest uppercase mb-2">Código e Algoritmo</div>
+          <h2 class="font-title text-3xl sm:text-4xl font-extrabold text-white mb-6">Como Funciona o Redimensionamento na Lambda?</h2>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+            <!-- Passo a Passo em Texto -->
+            <div class="space-y-4 text-xs text-slate-300">
+              <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
+                <h4 class="font-bold text-white text-sm mb-1 text-amber-400">1. Extração do Evento JSON</h4>
+                <p>A função recebe o evento contendo o nome do Bucket e a Chave (Key) do arquivo recém-criado.</p>
+              </div>
+
+              <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
+                <h4 class="font-bold text-white text-sm mb-1 text-violet-400">2. Download em Memória Stream</h4>
+                <p>O código baixa a imagem original via Stream de memória RAM, sem salvar nada no disco local da função.</p>
+              </div>
+
+              <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
+                <h4 class="font-bold text-white text-sm mb-1 text-cyan-400">3. Redimensionamento Proporcional</h4>
+                <p>Utilização de bibliotecas nativas (ex: Sharp em Node.js ou Java AWT) para converter a foto em 150x150px.</p>
+              </div>
+
+              <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
+                <h4 class="font-bold text-white text-sm mb-1 text-emerald-400">4. Upload da Thumbnail no S3</h4>
+                <p>A imagem processada é enviada diretamente ao bucket de destino com sufixo <code class="text-emerald-300">-thumb.jpg</code>.</p>
+              </div>
+            </div>
+
+            <!-- Exemplo de Código Lambda -->
+            <div class="glass-card p-5 rounded-2xl border-slate-700 bg-slate-950 font-mono text-[11px] text-slate-300 overflow-x-auto">
+              <div class="flex items-center justify-between pb-3 border-b border-slate-800 text-slate-400 text-xs mb-3">
+                <span>handler.js / Lambda Function</span>
+                <span class="text-amber-400">Node.js 18.x</span>
+              </div>
+              <pre class="text-slate-200"><code><span class="text-violet-400">exports</span>.handler = <span class="text-amber-400">async</span> (event) => {
+  <span class="text-slate-500">// 1. Obtém bucket e arquivo do evento S3</span>
+  <span class="text-violet-400">const</span> bucket = event.Records[<span class="text-cyan-400">0</span>].s3.bucket.name;
+  <span class="text-violet-400">const</span> key = event.Records[<span class="text-cyan-400">0</span>].s3.object.key;
+
+  <span class="text-slate-500">// 2. Baixa imagem original do S3</span>
+  <span class="text-violet-400">const</span> origImage = <span class="text-amber-400">await</span> s3.getObject({ Bucket: bucket, Key: key }).promise();
+
+  <span class="text-slate-500">// 3. Redimensiona com biblioteca Sharp</span>
+  <span class="text-violet-400">const</span> resizedBuffer = <span class="text-amber-400">await</span> sharp(origImage.Body)
+    .resize(<span class="text-cyan-400">150</span>, <span class="text-cyan-400">150</span>)
+    .toBuffer();
+
+  <span class="text-slate-500">// 4. Salva Thumbnail no bucket de destino</span>
+  <span class="text-amber-400">await</span> s3.putObject({
+    Bucket: <span class="text-emerald-400">'meu-bucket-thumbnails'</span>,
+    Key: <span class="text-emerald-400">`thumb-${key}`</span>,
+    Body: resizedBuffer
+  }).promise();
+};</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 11: ROTEIRO DE APRESENTAÇÃO PRÁTICA -->
+      <section class="slide" id="slide-11">
+        <div class="max-w-5xl mx-auto w-full h-full flex flex-col justify-center">
+          <div class="text-amber-400 font-mono text-xs font-bold tracking-widest uppercase mb-2">Guia da Apresentação</div>
+          <h2 class="font-title text-3xl sm:text-4xl font-extrabold text-white mb-6">Roteiro para a Demonstração ao Vivo</h2>
+          
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="glass-card p-6 rounded-2xl border-amber-500/30 flex flex-col justify-between">
+              <div>
+                <div class="w-10 h-10 rounded-full bg-amber-500 text-slate-950 font-bold flex items-center justify-center text-lg mb-4">1</div>
+                <h3 class="font-title font-bold text-lg text-white mb-2">Upload na Tela React</h3>
+                <p class="text-xs text-slate-300 leading-relaxed">Abrir o navegador com a aplicação React desenvolvida, selecionar uma imagem HD pesada e enviar via formulário.</p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] font-mono text-amber-400">Passo Inicial</div>
+            </div>
+
+            <div class="glass-card p-6 rounded-2xl border-violet-500/30 flex flex-col justify-between">
+              <div>
+                <div class="w-10 h-10 rounded-full bg-violet-500 text-white font-bold flex items-center justify-center text-lg mb-4">2</div>
+                <h3 class="font-title font-bold text-lg text-white mb-2">Console AWS (S3 & Logs)</h3>
+                <p class="text-xs text-slate-300 leading-relaxed">Mostrar no AWS Console o bucket de origem recebendo o arquivo e os logs instantâneos do CloudWatch confirmando a execução da Lambda.</p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] font-mono text-violet-400">Validação AWS Cloud</div>
+            </div>
+
+            <div class="glass-card p-6 rounded-2xl border-emerald-500/30 flex flex-col justify-between">
+              <div>
+                <div class="w-10 h-10 rounded-full bg-emerald-500 text-slate-950 font-bold flex items-center justify-center text-lg mb-4">3</div>
+                <h3 class="font-title font-bold text-lg text-white mb-2">Exibição da Thumbnail</h3>
+                <p class="text-xs text-slate-300 leading-relaxed">Voltar para a tela React e mostrar a miniatura de 150x150 gerada e carregada automaticamente sem recarregar a página.</p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] font-mono text-emerald-400">Resultado Final</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 12: CONCLUSÃO / DEMO LIVE (ESCURO) -->
+      <section class="slide" id="slide-12">
+        <div class="h-full flex flex-col justify-center items-center text-center max-w-4xl mx-auto">
+          <div class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-amber-500 to-violet-600 flex items-center justify-center text-white text-4xl mb-6 shadow-2xl pulse-effect">
+            <i class="fa-brands fa-aws"></i>
+          </div>
+
+          <h2 class="font-title font-extrabold text-4xl sm:text-5xl text-white mb-4">
+            Vamos para o Projeto na Prática!
+          </h2>
+
+          <p class="text-slate-300 text-lg mb-10 max-w-2xl font-light">
+            Obrigado pela atenção! Apresentação do <b>Grupo 3</b> — Arquitetura de Processamento Serverless de Imagens com AWS S3, Lambda, React e Spring Boot.
+          </p>
+
+          <div class="flex flex-wrap items-center justify-center gap-4">
+            <button onclick="goToSlide(2)" class="px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold transition border border-slate-700 text-sm flex items-center gap-2">
+              <i class="fa-solid fa-play text-rose-400"></i> Rever Animação Monólito vs Serverless
+            </button>
+            <button onclick="goToSlide(1)" class="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition text-sm flex items-center gap-2">
+              <i class="fa-solid fa-rotate-left"></i> Voltar ao Início
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- FOOTER / CONTROLES DE NAVEGAÇÃO -->
+    <footer class="h-16 border-t border-slate-800 bg-slate-900/90 px-8 flex items-center justify-between text-xs text-slate-400 z-50">
+      <div class="flex items-center gap-2 font-mono">
+        <span class="text-slate-500">Navegação:</span>
+        <kbd class="px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-300">←</kbd>
+        <kbd class="px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-300">→</kbd>
+        <span class="text-slate-500">ou clique nos botões</span>
+      </div>
+
+      <!-- Botões Anterior / Próximo -->
+      <div class="flex items-center gap-3">
+        <button id="btn-prev" onclick="prevSlide()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none text-slate-200 font-semibold transition flex items-center gap-2 text-xs">
+          <i class="fa-solid fa-chevron-left"></i> Anterior
+        </button>
+        
+        <button id="btn-next" onclick="nextSlide()" class="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition flex items-center gap-2 text-xs">
+          Próximo <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- JAVASCRIPT: CONTROLE DE SLIDES E SIMULAÇÕES DA ANIMAÇÃO -->
+  <script>
+    // ==========================================
+    // 1. GERENCIADOR DE NAVEGAÇÃO DE SLIDES
+    // ==========================================
+    let currentSlide = 1;
+    const totalSlides = 12;
+
+    function updateSlides() {
+      // Ocultar todos os slides
+      document.querySelectorAll('.slide').forEach((el, index) => {
+        el.classList.remove('active');
+      });
+
+      // Mostrar o slide atual
+      const activeEl = document.getElementById(`slide-${currentSlide}`);
+      if (activeEl) {
+        activeEl.classList.add('active');
+      }
+
+      // Atualizar Indicadores
+      document.getElementById('slide-indicator').textContent = `${String(currentSlide).padStart(2, '0')} / ${totalSlides}`;
+      document.getElementById('progress-bar').style.width = `${(currentSlide / totalSlides) * 100}%`;
+
+      // Atualizar Estado dos Botões
+      document.getElementById('btn-prev').disabled = (currentSlide === 1);
+      document.getElementById('btn-next').disabled = (currentSlide === totalSlides);
+
+      // Gatilho para pausar simulações caso saia do Slide 2
+      if (currentSlide !== 2) {
+        monoSim.reset();
+        serverlessSim.reset();
+      }
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides) {
+        currentSlide++;
+        updateSlides();
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 1) {
+        currentSlide--;
+        updateSlides();
+      }
+    }
+
+    function goToSlide(num) {
+      if (num >= 1 && num <= totalSlides) {
+        currentSlide = num;
+        updateSlides();
+      }
+    }
+
+    // Teclas de atalho teclado
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft') {
+        prevSlide();
+      }
+    });
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+
+
+    // ==========================================
+    // 2. SIMULADOR DA ANIMAÇÃO 1: MONÓLITO (CRASH)
+    // ==========================================
+    class MonolithSimulation {
+      constructor() {
+        this.isRunning = false;
+        this.timer = null;
+        this.cpu = 20;
+        this.queue = 0;
+        this.stage = 0;
+      }
+
+      start() {
+        if (this.isRunning) return;
+        this.reset();
+        this.isRunning = true;
+        
+        const server = document.getElementById('mono-server');
+        const cpuBar = document.getElementById('mono-cpu-bar');
+        const cpuVal = document.getElementById('mono-cpu-val');
+        const queueVal = document.getElementById('mono-queue-val');
+        const badge = document.getElementById('mono-status-badge');
+        const overlay = document.getElementById('mono-crash-overlay');
+        const particlesContainer = document.getElementById('mono-particles');
+
+        let tick = 0;
+        this.timer = setInterval(() => {
+          tick++;
+
+          // Fase 1: Carga normal (0 a 3s)
+          if (tick <= 10) {
+            this.cpu = Math.min(45, this.cpu + 2);
+            this.queue = 2;
+            server.style.transform = 'scale(1.05)';
+            this.spawnParticle(particlesContainer, '#38bdf8');
+          } 
+          // Fase 2: Influxo pesado de requisições (3 a 8s)
+          else if (tick <= 25) {
+            this.cpu = Math.min(98, this.cpu + 4);
+            this.queue += 5;
+            
+            // Aumenta o tamanho do servidor para dar a ideia de sobrecarga visual
+            const scale = 1.05 + (tick - 10) * 0.035;
+            server.style.transform = `scale(${scale})`;
+            server.style.borderColor = '#f59e0b';
+            
+            cpuBar.className = 'bg-amber-500 h-full transition-all duration-200';
+            badge.className = 'px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20';
+            badge.textContent = 'SOBRETENSÃO / ALTA CARGA';
+            
+            this.spawnParticle(particlesContainer, '#f59e0b');
+            this.spawnParticle(particlesContainer, '#f59e0b');
+          } 
+          // Fase 3: CRASH E OVERLOAD (8s+)
+          else {
+            this.cpu = 100;
+            this.queue += 12;
+            server.style.transform = 'scale(1.6)';
+            server.classList.add('shake-animation');
+            server.style.borderColor = '#f43f5e';
+            
+            cpuBar.className = 'bg-rose-500 h-full transition-all duration-200';
+            badge.className = 'px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20';
+            badge.textContent = 'CRASH / TIMEOUT';
+
+            overlay.classList.remove('opacity-0', 'pointer-events-none');
+            overlay.classList.add('opacity-100');
+            
+            clearInterval(this.timer);
+            this.isRunning = false;
+          }
+
+          // Atualizar leituras na UI
+          cpuBar.style.width = `${this.cpu}%`;
+          cpuVal.textContent = `${this.cpu}%`;
+          queueVal.textContent = `${this.queue}`;
+        }, 300);
+      }
+
+      spawnParticle(container, color) {
+        const particle = document.createElement('div');
+        particle.className = 'absolute w-2 h-2 rounded-full pointer-events-none transition-all duration-700 ease-linear';
+        particle.style.backgroundColor = color;
+        particle.style.left = '45px';
+        particle.style.top = '50%';
+        container.appendChild(particle);
+
+        setTimeout(() => {
+          particle.style.left = '50%';
+          particle.style.opacity = '0';
+        }, 50);
+
+        setTimeout(() => particle.remove(), 750);
+      }
+
+      reset() {
+        clearInterval(this.timer);
+        this.isRunning = false;
+        this.cpu = 20;
+        this.queue = 0;
+
+        const server = document.getElementById('mono-server');
+        const cpuBar = document.getElementById('mono-cpu-bar');
+        const cpuVal = document.getElementById('mono-cpu-val');
+        const queueVal = document.getElementById('mono-queue-val');
+        const badge = document.getElementById('mono-status-badge');
+        const overlay = document.getElementById('mono-crash-overlay');
+        const particlesContainer = document.getElementById('mono-particles');
+
+        server.style.transform = 'scale(1)';
+        server.classList.remove('shake-animation');
+        server.style.borderColor = '#475569';
+        
+        cpuBar.className = 'bg-emerald-500 h-full w-1/5 transition-all duration-200';
+        cpuBar.style.width = '20%';
+        cpuVal.textContent = '22%';
+        queueVal.textContent = '0';
+        
+        badge.className = 'px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+        badge.textContent = 'SAUDÁVEL';
+        
+        overlay.classList.remove('opacity-100');
+        overlay.classList.add('opacity-0', 'pointer-events-none');
+        particlesContainer.innerHTML = '';
+      }
+    }
+
+
+    // ==========================================
+    // 3. SIMULADOR DA ANIMAÇÃO 2: SERVERLESS (ELASTICIDADE)
+    // ==========================================
+    class ServerlessSimulation {
+      constructor() {
+        this.isRunning = false;
+        this.timer = null;
+        this.lambdas = 0;
+        this.processed = 0;
+      }
+
+      start() {
+        if (this.isRunning) return;
+        this.reset();
+        this.isRunning = true;
+
+        const pool = document.getElementById('sls-lambda-pool');
+        const badge = document.getElementById('sls-status-badge');
+        const countVal = document.getElementById('sls-count-val');
+        const processedVal = document.getElementById('sls-processed-val');
+        const particlesContainer = document.getElementById('sls-particles');
+
+        let tick = 0;
+        pool.innerHTML = ''; // Limpar aviso scale-to-zero
+
+        this.timer = setInterval(() => {
+          tick++;
+
+          // Fase 1: Explosão massiva de requisições (0 a 10s) - Escala até 10 Lambdas!
+          if (tick <= 14) {
+            this.spawnLambdaNode(pool);
+            this.lambdas = pool.children.length;
+            this.processed += this.lambdas * 8;
+
+            badge.className = 'px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20';
+            badge.textContent = `ESCALANDO: ${this.lambdas} INSTÂNCIAS`;
+
+            this.spawnParticle(particlesContainer);
+            this.spawnParticle(particlesContainer);
+          } 
+          // Fase 2: O pico de carregamento encerra, solicitações param (10s em diante) -> SCALE TO ZERO!
+          else {
+            if (pool.children.length > 0) {
+              pool.removeChild(pool.lastChild);
+              this.lambdas = pool.children.length;
+              this.processed += 5;
+
+              badge.className = 'px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20';
+              badge.textContent = `REDUZINDO ELASTICIDADE: ${this.lambdas} ATIVAS`;
+            } else {
+              // Finalizado com Scale to Zero
+              badge.className = 'px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+              badge.textContent = 'FINALIZADO: SCALE TO ZERO (R$ 0,00)';
+              pool.innerHTML = '<span class="text-[11px] text-slate-500 italic font-mono self-center">Scale to Zero (0 instâncias)</span>';
+              
+              clearInterval(this.timer);
+              this.isRunning = false;
+            }
+          }
+
+          countVal.textContent = `${this.lambdas}`;
+          processedVal.textContent = `${this.processed}`;
+        }, 400);
+      }
+
+      spawnLambdaNode(container) {
+        if (container.children.length >= 10) return;
+        const node = document.createElement('div');
+        node.className = 'w-7 h-7 rounded-md bg-violet-600 border border-violet-400 text-white flex items-center justify-center text-[10px] font-bold shadow-md animate-bounce';
+        node.innerHTML = '<i class="fa-solid fa-bolt text-[10px]"></i>';
+        container.appendChild(node);
+      }
+
+      spawnParticle(container) {
+        const particle = document.createElement('div');
+        particle.className = 'absolute w-2 h-2 rounded-full bg-amber-400 pointer-events-none transition-all duration-500 ease-linear';
+        particle.style.left = '60px';
+        particle.style.top = '50%';
+        container.appendChild(particle);
+
+        setTimeout(() => {
+          particle.style.left = '85%';
+          particle.style.opacity = '0';
+        }, 50);
+
+        setTimeout(() => particle.remove(), 550);
+      }
+
+      reset() {
+        clearInterval(this.timer);
+        this.isRunning = false;
+        this.lambdas = 0;
+        this.processed = 0;
+
+        const pool = document.getElementById('sls-lambda-pool');
+        const badge = document.getElementById('sls-status-badge');
+        const countVal = document.getElementById('sls-count-val');
+        const processedVal = document.getElementById('sls-processed-val');
+        const particlesContainer = document.getElementById('sls-particles');
+
+        pool.innerHTML = '<span class="text-[11px] text-slate-500 italic font-mono self-center">Scale to Zero (0 instâncias)</span>';
+        badge.className = 'px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-violet-500/10 text-violet-400 border border-violet-500/20';
+        badge.textContent = 'OCIOSO (ZERO COST)';
+        
+        countVal.textContent = '0';
+        processedVal.textContent = '0';
+        particlesContainer.innerHTML = '';
+      }
+    }
+
+    // Instanciar objetos globais de simulação
+    const monoSim = new MonolithSimulation();
+    const serverlessSim = new ServerlessSimulation();
+
+    // Inicialização ao carregar página
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSlides();
+    });
+  </script>
+
+</body>
+</html>
