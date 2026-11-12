@@ -146,7 +146,7 @@
         <div class="w-48 bg-slate-800 h-1.5 rounded-full overflow-hidden">
           <div id="progress-bar" class="bg-gradient-to-r from-amber-500 to-violet-500 h-full w-1/12 transition-all duration-300"></div>
         </div>
-        <span id="slide-indicator" class="text-amber-400 font-bold text-sm">01 / 12</span>
+        <span id="slide-indicator" class="text-amber-400 font-bold text-sm">01 / 13</span>
       </div>
 
       <!-- Ações rápidas -->
@@ -175,6 +175,11 @@
           <p class="text-slate-300 text-lg sm:text-xl max-w-3xl font-light mb-10 leading-relaxed">
             Geração automática e otimizada de miniaturas (<span class="text-amber-400 font-medium">Thumbnails</span>) utilizando reatividade na nuvem, desacoplada com <span class="text-cyan-400 font-medium">React</span> e <span class="text-emerald-400 font-medium">Java Spring Boot</span>.
           </p>
+
+          <!-- Apresentadores (Renderizado de forma estilizada via Modal) -->
+          <div id="presenters-container" class="hidden flex-col items-center justify-center mb-8 w-full max-w-3xl">
+            <!-- Renderizado dinamicamente via JS -->
+          </div>
 
           <!-- Badges de Tecnologias -->
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-3xl">
@@ -419,7 +424,7 @@
           <div class="p-5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-4">
             <i class="fa-solid fa-circle-info text-2xl text-amber-400 shrink-0"></i>
             <p class="text-sm text-slate-300">
-              <b>No nosso projeto:</b> O S3 atua em duas frentes: como <i>bucket de upload original</i> recebendo fotos enviadas pelo backend Java e como <i>bucket público de distribuição</i> servindo as miniaturas finais.
+              <b>No nosso projeto:</b> O S3 atua em duas frentes: como <i>bucket de upload original</i> recebendo fotos enviadas pelo backend Java e servindo as miniaturas finais.
             </p>
           </div>
         </div>
@@ -472,7 +477,7 @@
                     <i class="fa-solid fa-arrow-right text-amber-400"></i>
                   </div>
                   <div class="p-2.5 rounded bg-slate-950 border border-slate-800 text-slate-300 flex items-center justify-between">
-                    <span>2. Spin-up de container limpo</span>
+                    <span>2. Spin-up de container limpo (Cold start quando fora do warm start)</span>
                     <i class="fa-solid fa-microchip text-violet-400"></i>
                   </div>
                   <div class="p-2.5 rounded bg-slate-950 border border-slate-800 text-slate-300 flex items-center justify-between">
@@ -480,7 +485,7 @@
                     <i class="fa-solid fa-gear text-cyan-400"></i>
                   </div>
                   <div class="p-2.5 rounded bg-slate-950 border border-slate-800 text-slate-300 flex items-center justify-between">
-                    <span>4. Salvamento & Descarte Pod</span>
+                    <span>4. Salvamento ou Descarte após um período ocioso</span>
                     <i class="fa-solid fa-check text-emerald-400"></i>
                   </div>
                 </div>
@@ -497,8 +502,8 @@
       <!-- SLIDE 5: VANTAGENS S3 + LAMBDA -->
       <section class="slide" id="slide-5">
         <div class="max-w-5xl mx-auto w-full h-full flex flex-col justify-center">
-          <div class="text-amber-400 font-mono text-xs font-bold tracking-widest uppercase mb-2">Por Que Escolhemos Essa Arquitetura?</div>
-          <h2 class="font-title text-3xl sm:text-4xl font-extrabold text-white mb-8">VantagensCompetitivas do Par S3 + Lambda</h2>
+          <div class="text-amber-400 font-mono text-xs font-bold tracking-widest uppercase mb-2">Por Que Escolher Essa Arquitetura?</div>
+          <h2 class="font-title text-3xl sm:text-4xl font-extrabold text-white mb-8">Vantagens Competitivas do Par S3 + Lambda</h2>
           
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             <div class="glass-card p-5 rounded-xl border-slate-700 hover:border-amber-500/50 transition">
@@ -640,7 +645,7 @@
                   </li>
                   <li class="flex items-start gap-2">
                     <i class="fa-solid fa-check text-cyan-400 mt-0.5"></i>
-                    <span><b>Galeria Reativa:</b> Renderização imediata da Thumbnail gerada pelo S3.</span>
+                    <span><b>Galeria de imagens:</b> Mostra com detalhes imagens originais enviadas e processadas.</span>
                   </li>
                 </ul>
               </div>
@@ -673,14 +678,14 @@
                   </li>
                   <li class="flex items-start gap-2">
                     <i class="fa-solid fa-check text-emerald-400 mt-0.5"></i>
-                    <span><b>Segurança IAM:</b> Geração de chaves temporárias e acesso restrito aos buckets.</span>
+                    <span><b>Segurança S3Presign:</b> Geração de imagens com acesso temporário.</span>
                   </li>
                 </ul>
               </div>
 
               <div class="mt-6 p-3 rounded-lg bg-slate-950 font-mono text-[11px] text-emerald-300 border border-slate-800">
-                // Spring Boot Controller<br/>
-                s3Client.putObject(PutObjectRequest.builder()...);
+                // Spring Boot Service<br/>
+                s3Presigner.presignGetObject(...).url().toExternalForm();
               </div>
             </div>
           </div>
@@ -691,48 +696,123 @@
       <section class="slide" id="slide-8">
         <div class="max-w-5xl mx-auto w-full h-full flex flex-col justify-center">
           <div class="text-violet-400 font-mono text-xs font-bold tracking-widest uppercase mb-2">Aplicações Práticas</div>
-          <h2 class="font-title text-3xl sm:text-4xl font-extrabold text-white mb-8">Onde Essa Solução É Utilizada no Mercado?</h2>
+          <h2 class="font-title text-2xl sm:text-3xl font-extrabold text-white mb-6">Onde Essa Solução É Utilizada no Mercado?</h2>
           
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="glass-card p-6 rounded-2xl border-slate-800 flex items-start gap-4">
-              <div class="p-3 bg-amber-500/10 text-amber-400 rounded-xl text-2xl shrink-0">
-                <i class="fa-solid fa-cart-shopping"></i>
-              </div>
+            
+            <!-- CARD 1: E-COMMERCE -->
+            <div class="glass-card p-5 rounded-2xl border-slate-800 flex flex-col justify-between bg-slate-900/90">
               <div>
-                <h3 class="font-title font-bold text-base text-white mb-1">Plataformas de E-Commerce</h3>
-                <p class="text-xs text-slate-300 leading-relaxed">Vendedores sobem fotos em alta resolução de produtos. O Lambda gera automaticamente miniaturas otimizadas para os cards do catálogo e aplicativo móvel.</p>
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-3">
+                    <div class="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl text-xl">
+                      <i class="fa-solid fa-cart-shopping"></i>
+                    </div>
+                    <div>
+                      <h3 class="font-title font-bold text-base text-white">Plataformas de E-Commerce</h3>
+                      <p class="text-[11px] text-slate-400">Padronização de catálogos e vitrines</p>
+                    </div>
+                  </div>
+                  <span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[10px] font-mono border border-amber-500/20">Miniatura Catálogo</span>
+                </div>
+                <p class="text-xs text-slate-300 leading-relaxed mb-4">
+                  Vendedores sobem fotos em 4K. A Lambda gera automaticamente miniaturas leves para exibição em vitrines e aplicativos móveis.
+                </p>
+              </div>
+
+              <!-- TELINHA / MOCKUP E-COMMERCE -->
+              <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-3">
+                <div class="flex items-center justify-between text-[11px] font-mono text-slate-400 border-b border-slate-800 pb-2">
+                  <span class="flex items-center gap-1.5"><i class="fa-solid fa-store text-amber-400"></i> Vitrine Loja Virtual</span>
+                  <span id="ecom-badge-status" class="text-slate-500">Aguardando Foto...</span>
+                </div>
+
+                <div class="flex items-center gap-3">
+                  <!-- Image preview container -->
+                  <div class="w-20 h-20 rounded-lg bg-slate-900 border border-slate-800 overflow-hidden flex items-center justify-center relative shrink-0">
+                    <img id="ecom-img" src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=300" alt="Produto" class="w-full h-full object-cover opacity-30 transition-all duration-300">
+                    <div id="ecom-spinner" class="hidden absolute inset-0 bg-slate-950/80 flex items-center justify-center text-amber-400 text-lg">
+                      <i class="fa-solid fa-spinner animate-spin"></i>
+                    </div>
+                  </div>
+
+                  <div class="flex-1 space-y-1 text-xs">
+                    <div class="font-bold text-white flex items-center justify-between">
+                      <span>Tênis Sport Ultra 4K</span>
+                      <span class="text-amber-400 font-mono text-[11px]">R$ 299,90</span>
+                    </div>
+                    <div class="text-[10px] font-mono text-slate-400 flex flex-col gap-0.5">
+                      <div class="flex justify-between"><span>Original:</span> <span id="ecom-orig-size" class="text-slate-300">12.4 MB (3840x2160)</span></div>
+                      <div class="flex justify-between"><span>S3 Thumb:</span> <span id="ecom-thumb-size" class="text-slate-500">Pendente...</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <button onclick="simularEcomUpload()" class="w-full py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-mono text-xs border border-amber-500/40 transition flex items-center justify-center gap-2">
+                  <i class="fa-solid fa-cloud-arrow-up"></i> Simular Upload Produto (S3 + Lambda)
+                </button>
               </div>
             </div>
 
-            <div class="glass-card p-6 rounded-2xl border-slate-800 flex items-start gap-4">
-              <div class="p-3 bg-violet-500/10 text-violet-400 rounded-xl text-2xl shrink-0">
-                <i class="fa-solid fa-users"></i>
-              </div>
+            <!-- CARD 2: REDES SOCIAIS -->
+            <div class="glass-card p-5 rounded-2xl border-slate-800 flex flex-col justify-between bg-slate-900/90">
               <div>
-                <h3 class="font-title font-bold text-base text-white mb-1">Redes Sociais & Portais</h3>
-                <p class="text-xs text-slate-300 leading-relaxed">Processamento imediato de fotos de perfil (avatars) e posts. Recorte, compressão WebP e criação de thumbnails no momento da postagem.</p>
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-3">
+                    <div class="p-2.5 bg-violet-500/10 text-violet-400 rounded-xl text-xl">
+                      <i class="fa-solid fa-users"></i>
+                    </div>
+                    <div>
+                      <h3 class="font-title font-bold text-base text-white">Redes Sociais & Portais</h3>
+                      <p class="text-[11px] text-slate-400">Avatars e Feed de Notícias</p>
+                    </div>
+                  </div>
+                  <span class="px-2 py-0.5 rounded bg-violet-500/10 text-violet-400 text-[10px] font-mono border border-violet-500/20">Crop Avatar</span>
+                </div>
+                <p class="text-xs text-slate-300 leading-relaxed mb-4">
+                  Recorte, compressão e geração de miniaturas de fotos de perfil e publicações em tempo real para carregamento veloz no mobile.
+                </p>
+              </div>
+
+              <!-- TELINHA / MOCKUP REDE SOCIAL -->
+              <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-3">
+                <div class="flex items-center justify-between text-[11px] font-mono text-slate-400 border-b border-slate-800 pb-2">
+                  <span class="flex items-center gap-1.5"><i class="fa-solid fa-user-circle text-violet-400"></i> Feed / Perfil Usuário</span>
+                  <span id="social-badge-status" class="text-slate-500">Foto Padrão</span>
+                </div>
+
+                <div class="flex items-center gap-3">
+                  <!-- Avatar Crop Preview -->
+                  <div class="relative shrink-0">
+                    <div class="w-14 h-14 rounded-full border-2 border-violet-500/50 overflow-hidden bg-slate-900 relative">
+                      <img id="social-avatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150" alt="Avatar" class="w-full h-full object-cover grayscale opacity-50 transition-all duration-300">
+                      <div id="social-spinner" class="hidden absolute inset-0 bg-slate-950/80 flex items-center justify-center text-violet-400 text-sm">
+                        <i class="fa-solid fa-bolt animate-bounce"></i>
+                      </div>
+                    </div>
+                    <span class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-slate-950 flex items-center justify-center text-[8px] text-slate-950 font-bold">
+                      <i class="fa-solid fa-check"></i>
+                    </span>
+                  </div>
+
+                  <div class="flex-1 space-y-1 text-xs">
+                    <div class="font-bold text-white flex items-center justify-between">
+                      <span>@dev_student</span>
+                      <span id="social-time" class="text-[10px] font-mono text-slate-500">há 2 min</span>
+                    </div>
+                    <div class="text-[10px] font-mono text-slate-400">
+                      <div>Avatar original: <span class="text-slate-300">8.1 MB</span></div>
+                      <div>Thumbnail Avatar: <span id="social-thumb-size" class="text-slate-500">Pendente...</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <button onclick="simularSocialUpload()" class="w-full py-2 rounded-lg bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 font-mono text-xs border border-violet-500/40 transition flex items-center justify-center gap-2">
+                  <i class="fa-solid fa-user-gear"></i> Simular Post & Crop Avatar (Lambda)
+                </button>
               </div>
             </div>
 
-            <div class="glass-card p-6 rounded-2xl border-slate-800 flex items-start gap-4">
-              <div class="p-3 bg-cyan-500/10 text-cyan-400 rounded-xl text-2xl shrink-0">
-                <i class="fa-solid fa-id-card"></i>
-              </div>
-              <div>
-                <h3 class="font-title font-bold text-base text-white mb-1">Validação de Documentos (KYC)</h3>
-                <p class="text-xs text-slate-300 leading-relaxed">Bancos digitais e fintechs recebem fotos de CNH/RG. O Lambda ajusta a nitidez, reduz peso e aciona inteligência artificial para leitura facial.</p>
-              </div>
-            </div>
-
-            <div class="glass-card p-6 rounded-2xl border-slate-800 flex items-start gap-4">
-              <div class="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl text-2xl shrink-0">
-                <i class="fa-solid fa-notes-medical"></i>
-              </div>
-              <div>
-                <h3 class="font-title font-bold text-base text-white mb-1">Telemedicina & Laudos</h3>
-                <p class="text-xs text-slate-300 leading-relaxed">Sistemas médicos geram prévias rápidas de exames de imagem radiológicos para visualização em conexões móveis lentas.</p>
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -808,59 +888,72 @@
       <!-- SLIDE 10: O PROCESSAMENTO EM SI (DENTRO DA LAMBDA) -->
       <section class="slide" id="slide-10">
         <div class="max-w-5xl mx-auto w-full h-full flex flex-col justify-center">
-          <div class="text-violet-400 font-mono text-xs font-bold tracking-widest uppercase mb-2">Código e Algoritmo</div>
-          <h2 class="font-title text-3xl sm:text-4xl font-extrabold text-white mb-6">Como Funciona o Redimensionamento na Lambda?</h2>
+          <div class="text-violet-400 font-mono text-xs font-bold tracking-widest uppercase mb-2">Código e Algoritmo Real</div>
+          <h2 class="font-title text-3xl sm:text-4xl font-extrabold text-white mb-6">Como Funciona a Função Lambda Python?</h2>
           
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
             <!-- Passo a Passo em Texto -->
-            <div class="space-y-4 text-xs text-slate-300">
-              <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
-                <h4 class="font-bold text-white text-sm mb-1 text-amber-400">1. Extração do Evento JSON</h4>
-                <p>A função recebe o evento contendo o nome do Bucket e a Chave (Key) do arquivo recém-criado.</p>
+            <div class="space-y-3 text-xs text-slate-300">
+              <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
+                <h4 class="font-bold text-white text-sm mb-1 text-amber-400">1. Validação & Prevenção de Loop</h4>
+                <p>Verifica eventos <code class="text-amber-300">ObjectCreated:</code> e garante que o arquivo venha do diretório <code class="text-amber-300">imagens-originais/</code>, evitando recursão infinita no <code class="text-amber-300">imagens-processadas/</code>.</p>
               </div>
 
-              <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
-                <h4 class="font-bold text-white text-sm mb-1 text-violet-400">2. Download em Memória Stream</h4>
-                <p>O código baixa a imagem original via Stream de memória RAM, sem salvar nada no disco local da função.</p>
+              <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
+                <h4 class="font-bold text-white text-sm mb-1 text-violet-400">2. Processamento em Memória (BytesIO)</h4>
+                <p>Baixa o arquivo do S3 via <code class="text-violet-300">boto3</code> e carrega a imagem em RAM com <code class="text-violet-300">Image.open(io.BytesIO(file_content))</code> sem gravações em disco local.</p>
               </div>
 
-              <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
+              <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
                 <h4 class="font-bold text-white text-sm mb-1 text-cyan-400">3. Redimensionamento Proporcional</h4>
-                <p>Utilização de bibliotecas nativas (ex: Sharp em Node.js ou Java AWT) para converter a foto em 150x150px.</p>
+                <p>Aplica <code class="text-cyan-300">image.thumbnail((800, 800))</code> do Pillow (PIL) mantendo a proporção original do arquivo e otimizando com <code class="text-cyan-300">optimize=True</code>.</p>
               </div>
 
-              <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
-                <h4 class="font-bold text-white text-sm mb-1 text-emerald-400">4. Upload da Thumbnail no S3</h4>
-                <p>A imagem processada é enviada diretamente ao bucket de destino com sufixo <code class="text-emerald-300">-thumb.jpg</code>.</p>
+              <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
+                <h4 class="font-bold text-white text-sm mb-1 text-emerald-400">4. Upload para <code class="text-emerald-300">imagens-processadas/</code></h4>
+                <p>Salva o novo arquivo reduzido na chave <code class="text-emerald-300">imagens-processadas/{nome}_reduzida.{ext}</code> preservando o <code class="text-emerald-300">ContentType</code> original.</p>
               </div>
             </div>
 
-            <!-- Exemplo de Código Lambda -->
-            <div class="glass-card p-5 rounded-2xl border-slate-700 bg-slate-950 font-mono text-[11px] text-slate-300 overflow-x-auto">
+            <!-- Exemplo de Código Lambda Python Real -->
+            <div class="glass-card p-5 rounded-2xl border-slate-700 bg-slate-950 font-mono text-[11px] text-slate-300 overflow-x-auto max-h-[440px]">
               <div class="flex items-center justify-between pb-3 border-b border-slate-800 text-slate-400 text-xs mb-3">
-                <span>handler.js / Lambda Function</span>
-                <span class="text-amber-400">Node.js 18.x</span>
+                <span>lambda_function.py</span>
+                <span class="text-amber-400 font-bold flex items-center gap-1.5"><i class="fa-brands fa-python text-sm"></i> Python 3.x + Pillow</span>
               </div>
-              <pre class="text-slate-200"><code><span class="text-violet-400">exports</span>.handler = <span class="text-amber-400">async</span> (event) => {
-  <span class="text-slate-500">// 1. Obtém bucket e arquivo do evento S3</span>
-  <span class="text-violet-400">const</span> bucket = event.Records[<span class="text-cyan-400">0</span>].s3.bucket.name;
-  <span class="text-violet-400">const</span> key = event.Records[<span class="text-cyan-400">0</span>].s3.object.key;
+              <pre class="text-slate-200"><code><span class="text-violet-400">import</span> boto3, io, os, urllib.parse
+<span class="text-violet-400">from</span> PIL <span class="text-violet-400">import</span> Image
 
-  <span class="text-slate-500">// 2. Baixa imagem original do S3</span>
-  <span class="text-violet-400">const</span> origImage = <span class="text-amber-400">await</span> s3.getObject({ Bucket: bucket, Key: key }).promise();
+s3 = boto3.client(<span class="text-emerald-400">'s3'</span>)
+TAMANHO_MAXIMO = (<span class="text-cyan-400">800</span>, <span class="text-cyan-400">800</span>)
 
-  <span class="text-slate-500">// 3. Redimensiona com biblioteca Sharp</span>
-  <span class="text-violet-400">const</span> resizedBuffer = <span class="text-amber-400">await</span> sharp(origImage.Body)
-    .resize(<span class="text-cyan-400">150</span>, <span class="text-cyan-400">150</span>)
-    .toBuffer();
+<span class="text-violet-400">def</span> <span class="text-amber-400">lambda_handler</span>(event, context):
+    event_name = event[<span class="text-emerald-400">'Records'</span>][<span class="text-cyan-400">0</span>][<span class="text-emerald-400">'eventName'</span>]
+    <span class="text-violet-400">if not</span> event_name.startswith(<span class="text-emerald-400">'ObjectCreated:'</span>):
+        <span class="text-violet-400">return</span> {<span class="text-emerald-400">"status"</span>: <span class="text-emerald-400">"ignorado"</span>}
 
-  <span class="text-slate-500">// 4. Salva Thumbnail no bucket de destino</span>
-  <span class="text-amber-400">await</span> s3.putObject({
-    Bucket: <span class="text-emerald-400">'meu-bucket-thumbnails'</span>,
-    Key: <span class="text-emerald-400">`thumb-${key}`</span>,
-    Body: resizedBuffer
-  }).promise();
-};</code></pre>
+    bucket = event[<span class="text-emerald-400">'Records'</span>][<span class="text-cyan-400">0</span>][<span class="text-emerald-400">'s3'</span>][<span class="text-emerald-400">'bucket'</span>][<span class="text-emerald-400">'name'</span>]
+    key = urllib.parse.unquote_plus(event[<span class="text-emerald-400">'Records'</span>][<span class="text-cyan-400">0</span>][<span class="text-emerald-400">'s3'</span>][<span class="text-emerald-400">'object'</span>][<span class="text-emerald-400">'key'</span>])
+
+    <span class="text-slate-500"># Prevenção de Loop Infinito</span>
+    <span class="text-violet-400">if not</span> key.startswith(<span class="text-emerald-400">'imagens-originais/'</span>):
+        <span class="text-violet-400">return</span> {<span class="text-emerald-400">"status"</span>: <span class="text-emerald-400">"ignorado"</span>}
+
+    <span class="text-slate-500"># Download e leitura em memória com PIL</span>
+    res = s3.get_object(Bucket=bucket, Key=key)
+    image = Image.open(io.BytesIO(res[<span class="text-emerald-400">'Body'</span>].read()))
+
+    <span class="text-slate-500"># Redimensionamento proporcional (800x800)</span>
+    image.thumbnail(TAMANHO_MAXIMO)
+    buffer = io.BytesIO()
+    image.save(buffer, format=image.format <span class="text-violet-400">or</span> <span class="text-emerald-400">'JPEG'</span>, optimize=<span class="text-violet-400">True</span>)
+    buffer.seek(<span class="text-cyan-400">0</span>)
+
+    <span class="text-slate-500"># Upload para imagens-processadas/</span>
+    novo_nome = f<span class="text-emerald-400">"{nome_base}_reduzida{ext}"</span>
+    nova_key = f<span class="text-emerald-400">"imagens-processadas/{novo_nome}"</span>
+    s3.put_object(Bucket=bucket, Key=nova_key, Body=buffer)
+    <span class="text-violet-400">return</span> {<span class="text-emerald-400">"status"</span>: <span class="text-emerald-400">"sucesso"</span>}</code></pre>
             </div>
           </div>
         </div>
@@ -903,19 +996,47 @@
         </div>
       </section>
 
-      <!-- SLIDE 12: CONCLUSÃO / DEMO LIVE (ESCURO) -->
+      <!-- SLIDE 12: VÍDEO DE APRESENTAÇÃO DO PROJETO -->
       <section class="slide" id="slide-12">
+        <div class="max-w-5xl mx-auto w-full h-full flex flex-col justify-center items-center">
+          <div class="text-amber-400 font-mono text-xs font-bold tracking-widest uppercase mb-2 flex items-center gap-2">
+            <i class="fa-solid fa-circle-play text-red-500 animate-pulse"></i> Vídeo de Demonstração
+          </div>
+          <h2 class="font-title text-2xl sm:text-3xl font-extrabold text-white mb-4 text-center">
+            Demonstração Prática do Projeto
+          </h2>
+
+          <!-- Player de Vídeo em Destaque Expandido -->
+          <div class="w-full max-w-4xl aspect-video rounded-2xl overflow-hidden glass-card border border-amber-500/30 shadow-2xl shadow-amber-500/10 relative bg-slate-900">
+            <iframe 
+              class="w-full h-full border-0 rounded-2xl" 
+              src="https://www.youtube.com/embed/lJIrF4YjHfQ?si=lT4A7ZiCZ9ILm1rq" 
+              title="Vídeo de Apresentação do Projeto Grupo 3" 
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+              allowfullscreen>
+            </iframe>
+          </div>
+
+          <div class="mt-4 flex items-center gap-6 text-xs text-slate-400 font-mono">
+            <span class="flex items-center gap-1.5"><i class="fa-brands fa-youtube text-red-500 text-sm"></i> YouTube: lJIrF4YjHfQ</span>
+            <span class="flex items-center gap-1.5"><i class="fa-solid fa-film text-amber-400"></i> Processamento Serverless na Prática</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 13: CONCLUSÃO / DEMO LIVE (ESCURO) -->
+      <section class="slide" id="slide-13">
         <div class="h-full flex flex-col justify-center items-center text-center max-w-4xl mx-auto">
           <div class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-amber-500 to-violet-600 flex items-center justify-center text-white text-4xl mb-6 shadow-2xl pulse-effect">
             <i class="fa-brands fa-aws"></i>
           </div>
 
           <h2 class="font-title font-extrabold text-4xl sm:text-5xl text-white mb-4">
-            Vamos para o Projeto na Prática!
+            Obrigado a Todos!
           </h2>
 
           <p class="text-slate-300 text-lg mb-10 max-w-2xl font-light">
-            Obrigado pela atenção! Apresentação do <b>Grupo 3</b> — Arquitetura de Processamento Serverless de Imagens com AWS S3, Lambda, React e Spring Boot.
+            Apresentação do <b>Grupo 3</b> — Arquitetura de Processamento Serverless de Imagens com AWS S3, Lambda, React e Spring Boot.
           </p>
 
           <div class="flex flex-wrap items-center justify-center gap-4">
@@ -928,8 +1049,28 @@
           </div>
         </div>
       </section>
-
+  
     </main>
+
+    <!-- MODAL AUTOMÁTICO DE APRESENTADORES -->
+    <div id="presenters-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[100] flex items-center justify-center p-4 transition-all duration-300">
+      <div class="glass-card max-w-md w-full p-6 sm:p-8 rounded-3xl border border-amber-500/30 shadow-2xl relative text-center transform transition-all duration-300 scale-100">
+        <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center text-slate-950 text-2xl mx-auto mb-4 font-bold shadow-lg shadow-amber-500/20">
+          <i class="fa-solid fa-users-viewfinder"></i>
+        </div>
+        <h3 class="font-title font-extrabold text-2xl text-white mb-2">Quem irá apresentar?</h3>
+        <p class="text-xs text-slate-400 mb-6 leading-relaxed">Digite o nome dos integrantes/apresentadores (separe por vírgula se for mais de um):</p>
+        
+        <div class="space-y-4">
+          <input type="text" id="presenters-input" placeholder="Ex: Ana Silva, Carlos Eduardo, Pedro Alves" class="w-full px-4 py-3.5 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-500 font-sans text-sm focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition shadow-inner" autofocus />
+          
+          <button onclick="confirmPresenters()" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-sm transition shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2">
+            <span>Iniciar Apresentação</span>
+            <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- FOOTER / CONTROLES DE NAVEGAÇÃO -->
     <footer class="h-16 border-t border-slate-800 bg-slate-900/90 px-8 flex items-center justify-between text-xs text-slate-400 z-50">
@@ -960,7 +1101,7 @@
     // 1. GERENCIADOR DE NAVEGAÇÃO DE SLIDES
     // ==========================================
     let currentSlide = 1;
-    const totalSlides = 12;
+    const totalSlides = 13;
 
     function updateSlides() {
       // Ocultar todos os slides
@@ -1271,6 +1412,96 @@
     // Instanciar objetos globais de simulação
     const monoSim = new MonolithSimulation();
     const serverlessSim = new ServerlessSimulation();
+
+    // Funções de Simulação do Slide 8 (Casos de Uso)
+    function simularEcomUpload() {
+      const img = document.getElementById('ecom-img');
+      const spinner = document.getElementById('ecom-spinner');
+      const badge = document.getElementById('ecom-badge-status');
+      const thumbSize = document.getElementById('ecom-thumb-size');
+
+      spinner.classList.remove('hidden');
+      badge.className = 'text-amber-400 font-bold font-mono animate-pulse';
+      badge.textContent = 'Lambda Processando...';
+
+      setTimeout(() => {
+        spinner.classList.add('hidden');
+        img.classList.remove('opacity-30');
+        img.classList.add('opacity-100');
+        badge.className = 'text-emerald-400 font-bold font-mono';
+        badge.textContent = 'Thumbnail Pronta (S3)';
+        thumbSize.className = 'text-emerald-400 font-bold';
+        thumbSize.textContent = '28 KB (150x150px) -99.7%';
+      }, 900);
+    }
+
+    function simularSocialUpload() {
+      const avatar = document.getElementById('social-avatar');
+      const spinner = document.getElementById('social-spinner');
+      const badge = document.getElementById('social-badge-status');
+      const thumbSize = document.getElementById('social-thumb-size');
+      const time = document.getElementById('social-time');
+
+      spinner.classList.remove('hidden');
+      badge.className = 'text-violet-400 font-bold font-mono animate-pulse';
+      badge.textContent = 'Disparando S3 Event...';
+
+      setTimeout(() => {
+        spinner.classList.add('hidden');
+        avatar.classList.remove('grayscale', 'opacity-50');
+        avatar.classList.add('opacity-100');
+        badge.className = 'text-emerald-400 font-bold font-mono';
+        badge.textContent = 'Avatar Otimizado!';
+        thumbSize.className = 'text-violet-300 font-bold';
+        thumbSize.textContent = '18 KB (WebP Crop)';
+        time.textContent = 'agora mesmo';
+      }, 800);
+    }
+
+    // ==========================================
+    // 4. LÓGICA DO MODAL AUTOMÁTICO DE APRESENTADORES
+    // ==========================================
+    function confirmPresenters() {
+      const input = document.getElementById('presenters-input');
+      const modal = document.getElementById('presenters-modal');
+      const container = document.getElementById('presenters-container');
+      
+      const val = input.value.trim();
+      if (val) {
+        // Separa por vírgula ou considera texto completo
+        const names = val.split(',').map(n => n.trim()).filter(Boolean);
+        
+        container.innerHTML = `
+          <div class="inline-flex items-center gap-2 text-xs font-mono text-amber-400 uppercase tracking-widest font-semibold mb-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">
+            <i class="fa-solid fa-user-graduate text-amber-400"></i> Apresentadores
+          </div>
+          <div class="flex flex-wrap items-center justify-center gap-2.5">
+            ${names.map(name => `
+              <span class="px-4 py-2 rounded-xl bg-slate-900/90 border border-amber-500/40 text-slate-100 text-sm font-medium shadow-md flex items-center gap-2.5 transition hover:scale-105 hover:border-amber-400">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                ${name}
+              </span>
+            `).join('')}
+          </div>
+        `;
+        container.classList.remove('hidden');
+        container.classList.add('flex');
+      }
+
+      // Fecha o modal suavemente
+      modal.classList.add('opacity-0', 'pointer-events-none');
+      setTimeout(() => {
+        modal.style.display = 'none';
+      }, 300);
+    }
+
+    // Suporte para acionar o modal com a tecla Enter
+    document.addEventListener('keydown', (e) => {
+      const modal = document.getElementById('presenters-modal');
+      if (e.key === 'Enter' && modal && modal.style.display !== 'none' && !modal.classList.contains('pointer-events-none')) {
+        confirmPresenters();
+      }
+    });
 
     // Inicialização ao carregar página
     window.addEventListener('DOMContentLoaded', () => {
